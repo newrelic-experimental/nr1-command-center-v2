@@ -1,0 +1,24 @@
+@import url('//cdn.jsdelivr.net/npm/semantic-ui@2.4.1/dist/semantic.min.css');
+
+.sortBy {
+  position: fixed;
+  top: 1.7%;
+  left: 94%;
+}
+
+.notesLink {
+  margin-left: 10px;
+}
+
+.modalBtn {
+  margin-top: 20px;
+  margin-right: 5px;
+  background-color: green;
+  color: white;
+}
+
+.exportIncidents {
+  margin-bottom: 3px;
+  position: sticky;
+  left: 97%
+}

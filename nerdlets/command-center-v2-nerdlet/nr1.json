@@ -1,0 +1,6 @@
+{
+    "schemaType": "NERDLET",
+    "id": "command-center-v2-nerdlet",
+    "displayName": "Command Center V2",
+    "description": "Consolidated view of incidents, issues and analytics across many accounts"
+}
