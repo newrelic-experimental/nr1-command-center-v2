@@ -9,25 +9,21 @@
 This application aggregates incidents, anomalies, and issues across many accounts to provide a single, operational/reliability view. It also provides analytics in order to improve alert conditions and anomalies configured.
 
 ## Features
-- Per account snapshot of incident counts
-- Holistic, filterable/exportable view of open incidents
-- Auto refresh configuration of open incidents
-- Persistent links to correlate with individual incidents
-- Analytics for total incident count, accumulated incident minutes, MTTR, and % of incident closed under 5 minutes.
-- Linked dashboard that can be used as a tool for operational/reliability reviews. [Template provided here - this can be added to all accounts](dashboards/ops_template.json)
+- Per account snapshot of issue/anomaly counts
+- Holistic, filterable/exportable view of open incidents, issues, and anomalies across many accounts.
+- Auto refresh configuration of open incidents, issues, and anomalies
+- Persistent links to correlate with individual incidents and issues
+- Acknowledge and close issues directly in list view
+- Analytics for total issue count, accumulated issue minutes, MTTR, and % of issues closed under 5 minutes.
+- Configurable linked dashboard that can be used as a tool for operational/reliability reviews. [Template provided here - this can be added to all accounts](dashboards/ops_template.json)
 
 ## Screenshots
 
 ![Overview](screenshots/overview.png)
 ![Open Incidents](screenshots/open_incidents.png)
+![Open Issues](screenshots/open_issues.png)
 ![Analytics](screenshots/analytics.png)
 ![Drilldown](screenshots/drilldown.png)
-
-## Coming Soon
-
-- Open Anomalies view
-- Open Issues view
-- More analytics related to anomalies/issues
 
 ## Getting Started
 First, ensure that you have [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git) and [NPM](https://www.npmjs.com/get-npm) installed. If you're unsure whether you have one or both of them installed, run the following command(s) (If you have them installed these commands will return a version number, if not, the commands won't be recognized):
@@ -50,7 +46,7 @@ nr1 nerdpack:serve
 Visit [https://one.newrelic.com/?nerdpacks=local](https://one.newrelic.com/?nerdpacks=local), navigate to the Nerdpack, and :sparkles:
 
 ## Configuration
-Update `config.json` located under `./nerdlets/` with your accountId and optional refreshRate (in milliseconds). This controls how often the Open* pages are refreshed automatically.
+Update `config.json` located under `./nerdlets/` with your accountId, refreshRate (in milliseconds), and optional template dashboard name that will be linked to each account (if it exists in that account) within the Analytics tab. The refreshRate variable controls how often the Open* pages are refreshed automatically.
 
 ## Deploying this Nerdpack
 
@@ -76,7 +72,7 @@ Issues and enhancement requests can be submitted in the [Issues tab of this repo
 
 ## Contributing
 
-We encourage your contributions to improve [project name]! Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project.
+We encourage your contributions to improve Command Center! Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project.
 If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company,  please drop us an email at opensource@newrelic.com.
 
 **A note about vulnerabilities**

@@ -6,6 +6,7 @@ import {
   HeadingText,
   Modal,
   Icon,
+  NerdGraphMutation,
   NerdGraphQuery,
   Spinner,
   TextField,
@@ -21,7 +22,7 @@ import config from './config.json';
 
 const query = require('./utils');
 
-export default class OpenIncidents extends React.Component {
+export default class OpenIssues extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -40,9 +41,12 @@ export default class OpenIncidents extends React.Component {
       linkText: null,
       displayText: null,
       rowAccountId: null,
-      rowIncidentId: null,
+      rowIssueId: null,
+      closeModalHidden: true,
       ackModalHidden: true,
-      incToAck: null,
+      issueToAck: null,
+      issueToClose: null,
+      ackUser: null,
       currentTime: null
     };
   }
@@ -57,162 +61,205 @@ export default class OpenIncidents extends React.Component {
   }
 
   async componentDidUpdate(prevProps) {
-    if (
-      prevProps.time !== this.props.time ||
-      prevProps.accounts.length !== this.props.accounts.length
-    ) {
+    if (prevProps.time !== this.props.time) {
       await this.setState({ filteredTableData: [], openLoading: true });
       await this.getTableData();
+    }
+
+    if (prevProps.accounts.length !== this.props.accounts.length) {
+      let tableCopy = this.state.tableData;
+      let filteredTable = [];
+
+      for (var s=0; s<tableCopy.length; s++) {
+        for (var p=0; p<this.props.accounts.length; p++) {
+          if (tableCopy[s].accountIds[0] == this.props.accounts[p].id) {
+            filteredTable.push(tableCopy[s]);
+          }
+        }
+      }
+      await this.setState({ filteredTableData: filteredTable, openLoading: true });
     }
   }
 
   async getCurrentUser() {
     const data = await UserQuery.query();
-    return data.data.name;
+    return data.data;
   }
 
+
   async getTableData() {
-    const { accounts, time } = this.props;
-    const vioProms = [];
+    const { accounts, rawTime } = this.props;
+    const issueProms = [];
     const currTime = new moment().format('LT');
     const exportable = [];
+    let table = [];
+    let end = null;
+    let start = null;
 
-    const links = await this.loadLinksFromNerdStore();
-    // let acks = await this.loadAcksFromNerdStore();
-
-    for (const acct of accounts) {
-      vioProms.push(this.getViolationIds(acct));
+    if (rawTime.durationMs) {
+      end = Date.now();
+      start = end - rawTime.durationMs;
     }
 
-    Promise.all(vioProms).then(violations => {
-      const allViolations = [];
-      for (const vSet of violations) {
-        const vArray = vSet.violations.map(v => v.deprecatedIncidentId);
-        allViolations.push(this.getViolationData(vSet, vArray.toString()));
-      }
+    if (rawTime.startTime) {
+      end = rawTime.endTime;
+      start = rawTime.startTime;
+    }
 
-      Promise.all(allViolations).then(table => {
-        const formattedTable = table.flat();
+    const links = await this.loadLinksFromNerdStore();
+    const acks = await this.loadAcksFromNerdStore();
 
-        for (let k = 0; k < formattedTable.length; k++) {
-          const oneExportableResult = {
-            Account: formattedTable[k].accountName,
-            'Policy Name': formattedTable[k].policyName,
-            'Condition Name': formattedTable[k].conditionName,
-            Entity: formattedTable[k].targetName,
-            Description: formattedTable[k].title,
-            Priority: formattedTable[k].priority,
-            'Opened At': moment(formattedTable[k].openTime).format(
-              'MM/DD/YYYY, h:mm a'
-            ),
-            Muted: formattedTable[k].muted.toString()
-          };
-          let noteDisplay = null;
-          let noteLink = null;
-          for (let p = 0; p < links.length; p++) {
-            if (formattedTable[k].deprecatedIncidentId == Number(links[p].id)) {
-              noteDisplay = links[p].document.displayText;
-              noteLink = links[p].document.linkText;
-              break;
+    for (const acct of accounts) {
+      issueProms.push(this.getIssues(acct, start, end));
+    }
+
+    Promise.all(issueProms).then(issues => {
+      for (let k=0; k < issues.length; k++) {
+        if (issues[k].issues.length > 0) {
+          for (let i=0; i < issues[k].issues.length; i++) {
+            issues[k].issues[i].accountName = issues[k].account;
+
+            let now = moment();
+            let activated = issues[k].issues[i].activatedAt/1000;
+            let momentActivated = moment.unix(activated);
+            let duration = moment.duration(now.diff(momentActivated));
+            issues[k].issues[i].duration = duration;
+
+            const oneExportableResult = {
+              Account: issues[k].account,
+              Title: issues[k].issues[i].title[0],
+              IncidentCount: issues[k].issues[i].totalIncidents,
+              Entities: issues[k].issues[i].entityNames.toString(),
+              Priority: issues[k].issues[i].priority,
+              Muted: issues[k].issues[i].mutingState,
+              'Opened At': moment.unix(activated).format(
+                'MM/DD/YYYY, h:mm a'
+              )
+            };
+
+            let noteDisplay = null;
+            let noteLink = null;
+            let ackUser = null;
+            if (links.length > 0) {
+              for (let p = 0; p < links.length; p++) {
+                if (issues[k].issues[i].issueId == links[p].id) {
+                  noteDisplay = links[p].document.displayText;
+                  noteLink = links[p].document.linkText;
+                  break;
+                }
+              }
             }
-          }
-          formattedTable[k].display = noteDisplay;
-          formattedTable[k].link = noteLink;
-          oneExportableResult.Link = noteLink;
-          exportable.push(oneExportableResult);
-        }
 
-        this.setState(
-          {
-            tableData: formattedTable,
-            filteredTableData: formattedTable,
-            exportableData: exportable,
-            currentTime: currTime
-          },
-          () => {
-            this.removeOldLinks(links);
-            this.setState({ openLoading: false });
-          }
-        );
-        // this.setState({tableData: formattedTable }, () => {
-        //   this.setState({slicedTableData: this.state.tableData.slice(this.state.start, this.state.end)})
-        // })
-      });
+            // if (issues[k].issues[i].acknowledgedBy == null) {
+              if (acks.length > 0) {
+                for (let a = 0; a < acks.length; a++) {
+                  if (issues[k].issues[i].issueId == acks[a].id) {
+                    ackUser = acks[a].document.user;
+                    break;
+                  }
+                }
+              }
+            // }
+            // else {
+            //   //TODO: get userName based on ID - only available in v2 user model
+            //   // {
+            //   //   actor {
+            //   //     users {
+            //   //       userSearch(query: {scope: {userIds: "<ack'd by ID>"}}) {
+            //   //         users {
+            //   //           email
+            //   //           name
+            //   //           userId
+            //   //         }
+            //   //       }
+            //   //     }
+            //   //   }
+            //   // }
+            //
+            //   //
+            //   //ackUser = issues[k].issues[i].acknowledgedBy
+            // }
+
+            issues[k].issues[i].display = noteDisplay;
+            issues[k].issues[i].link = noteLink;
+            issues[k].issues[i].ackUser = ackUser;
+            oneExportableResult.Link = noteLink;
+            exportable.push(oneExportableResult);
+            table.push(issues[k].issues[i]);
+          } //inner for
+        } //if
+      } //outer for
+
+      this.setState(
+        {
+          tableData: table,
+          filteredTableData: table,
+          exportableData: exportable,
+          currentTime: currTime
+        },
+        () => {
+          this.removeOldLinks(links);
+          this.removeOldAcks(acks);
+          this.setState({ openLoading: false });
+        }
+      );
+      //   this.setState({tableData: formattedTable }, () => {
+      //     this.setState({slicedTableData: this.state.tableData.slice(this.state.start, this.state.end)})
+      //   })
+      // });
     });
   }
 
-  async getViolationIds(acct) {
+  async getIssues(acct, startTime, endTime) {
     const res = await NerdGraphQuery.query({
-      query: query.openViolations(acct.id, this.props.time)
+      query: query.openIssues(acct.id, startTime, endTime)
     });
 
     if (res.error) {
-      console.debug(`Failed to retrieve open violations for: ${acct.id}`);
-      const oneAccount = { account: acct.name, id: acct.id, violations: null };
+      console.debug(`Failed to retrieve open issues for: ${acct.id}`);
+      const oneAccount = { account: acct.name, id: acct.id, issues: null };
       return oneAccount;
     } else {
-      const violations = res.data.actor.account.nrql.results;
-      const critCount = violations.filter(v => v.priority == 'critical').length;
-      const warnCount = violations.filter(v => v.priority == 'warning').length;
+      const issues = res.data.actor.account.aiIssues.issues.issues;
+      const critCount = issues.filter(i => i.priority == 'CRITICAL').length;
+      const warnCount = issues.filter(i => i.priority == 'HIGH').length;
       const oneAccount = {
         account: acct.name,
         id: acct.id,
         warning: warnCount,
         critical: critCount,
-        violations: violations
+        issues: issues
       };
 
       return oneAccount;
     }
   }
 
-  async getViolationData(aRecord, vios) {
-    const res = await NerdGraphQuery.query({
-      query: query.openViolationData(aRecord.id, vios, this.props.time)
-    });
-
-    if (res.error) {
-      console.debug(
-        `Failed to retrieve open violation data for: ${aRecord.account}`
-      );
-    } else {
-      const vioData = res.data.actor.account.nrql.results;
-      for (const vio of vioData) {
-        const now = moment();
-        const end = moment(vio.openTime);
-        const duration = moment.duration(now.diff(end));
-        vio.duration = duration;
-        vio.accountName = aRecord.account;
-      }
-      return vioData;
-    }
-  }
-
   getWidth(h) {
     switch (h) {
       case 'ID':
-        return 1;
-        break;
-      case 'Title':
-        return 4;
-        break;
-      case 'Description':
-        return 5;
+        return 2;
         break;
       case 'Account':
         return 2;
         break;
-      case 'Policy Name':
-        return 2;
+      case 'Title':
+        return 6;
+        break;
+      case 'IncidentCount':
+        return 1;
+        break;
+      case 'Entities':
+        return 4;
         break;
       case 'Priority':
-        return 2;
+        return 1;
         break;
-      case 'Entity':
+      case 'Entities':
         return 3;
         break;
       case 'Links':
-        return 6;
+        return 4;
         break;
       default:
         return 2;
@@ -233,34 +280,31 @@ export default class OpenIncidents extends React.Component {
 
     switch (clickedCol) {
       case 'ID':
-        translated = 'deprecatedIncidentId';
+        translated = 'issueId';
         break;
       case 'Account':
         translated = 'accountName';
         break;
-      case 'Policy Name':
-        translated = 'policyName';
-        break;
-      case 'Condition Name':
-        translated = 'conditionName';
-        break;
-      case 'Entity':
-        translated = 'targetName';
+      case 'Entities':
+        translated = 'entityNames';
         break;
       case 'Title':
         translated = 'title';
+        break;
+      case "IncidentCount":
+        translated = 'totalIncidents';
         break;
       case 'Priority':
         translated = 'priority';
         break;
       case 'Opened At':
-        translated = 'openTime';
+        translated = 'activatedAt';
         break;
       case 'Duration':
         translated = 'duration';
         break;
       case 'Muted':
-        translated = 'muted';
+        translated = 'mutingState';
         break;
     }
 
@@ -309,8 +353,8 @@ export default class OpenIncidents extends React.Component {
   openLinkModal(row) {
     this.setState({
       linkModalHidden: false,
-      rowAccountId: row['account.id'],
-      rowIncidentId: row.deprecatedIncidentId
+      rowAccountId: row.accountIds[0],
+      rowIssueId: row.issueId
     });
   }
 
@@ -343,7 +387,7 @@ export default class OpenIncidents extends React.Component {
 
   updateLinkCell(d, l, iKey) {
     const currentIndex = this.state.tableData.findIndex(
-      inc => inc.deprecatedIncidentId === iKey
+      issue => issue.issueId === iKey
     );
     const tableCopy = [...this.state.tableData];
     tableCopy[currentIndex].display = d;
@@ -353,7 +397,7 @@ export default class OpenIncidents extends React.Component {
   async saveLinkToNerdStore() {
     const display = this.state.displayText;
     const link = this.state.linkText;
-    const docKey = this.state.rowIncidentId.toString();
+    const docKey = this.state.rowIssueId.toString();
 
     const hasErrors = await this.validateLinkInput(display, link);
 
@@ -363,7 +407,7 @@ export default class OpenIncidents extends React.Component {
         type: Toast.TYPE.CRITICAL
       });
     } else {
-      this.updateLinkCell(display, link, Number(docKey)); // live update (alleviates having to refresh to pull from nerdstore)
+      this.updateLinkCell(display, link, docKey); // live update (alleviates having to refresh to pull from nerdstore)
       this.setState(
         {
           linkModalHidden: true
@@ -372,7 +416,7 @@ export default class OpenIncidents extends React.Component {
           AccountStorageMutation.mutate({
             accountId: this.props.nerdStoreAccount, // store links to account that the nerdpack is published to. must have access to this account to view links.
             actionType: AccountStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
-            collection: 'IncidentLinksV2',
+            collection: 'IssueLinks',
             documentId: docKey,
             document: {
               displayText: display,
@@ -381,7 +425,7 @@ export default class OpenIncidents extends React.Component {
           })
             .then(data => {
               Toast.showToast({
-                title: 'Incident Link Saved!',
+                title: 'Issue Link Saved!',
                 type: Toast.TYPE.Normal
               });
               this.resetFormFields();
@@ -402,7 +446,7 @@ export default class OpenIncidents extends React.Component {
     const allLinks = [];
     AccountStorageQuery.query({
       accountId: this.props.nerdStoreAccount,
-      collection: 'IncidentLinksV2',
+      collection: 'IssueLinks',
       fetchPolicyType: AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST
     })
       .then(({ data }) => {
@@ -425,7 +469,7 @@ export default class OpenIncidents extends React.Component {
 
     linksFromNerdStore.forEach(lnk => {
       const index = loadedData.findIndex(
-        v => v.deprecatedIncidentId == Number(lnk.id)
+        i => i.issueId == lnk.id
       );
       if (index === -1) {
         this.deleteLinkFromNerdStore(lnk.id);
@@ -437,7 +481,7 @@ export default class OpenIncidents extends React.Component {
     AccountStorageMutation.mutate({
       accountId: this.props.nerdStoreAccount,
       actionType: AccountStorageMutation.ACTION_TYPE.DELETE_DOCUMENT,
-      collection: 'IncidentLinksV2',
+      collection: 'IssueLinks',
       documentId: docId
     });
   }
@@ -445,51 +489,218 @@ export default class OpenIncidents extends React.Component {
   openAckModal(row) {
     this.setState({
       ackModalHidden: false,
-      incToAck: row.deprecatedIncidentId
+      issueToAck: row.issueId,
+      rowAccountId: row.accountIds[0],
+      ackUser: row.ackUser
     });
   }
 
   _onCloseAckModal() {
     this.setState({
       ackModalHidden: true,
-      incToAck: null
+      issueToAck: null,
+      rowAccountId: null,
+      ackUser: null
     });
   }
 
-  // async ackIncident() {
-  //   //TODO: Need GQL Mutation
-  //   let { incToAck } = this.state;
-  //   let currentUser = await this.getCurrentUser();
-  //
-  //   //let r = await this.triggerAckGQL(incToAck);
-  // }
+  updateAckCell(issueId, user) {
+    const currentTableIndex = this.state.tableData.findIndex(
+      issue => issue.issueId === issueId
+    );
 
-  // saveAckToNerdStore(usr, aInc) {
-  //   //TODO: Need GQL Mutation
-  // }
-  //
-  // loadAcksFromNerdStore() {
-  //   //TODO: Need GQL Mutation
-  // }
-  //
-  // deleteAckFromNerdStore(ackId) {
-  //   //TODO: Need GQL Mutation
-  // }
-  //
-  // removeOldAcks() {
-  //   //TODO: Need GQL Mutation
-  // }
+    const currentFilteredIndex = this.state.filteredTableData.findIndex(
+      i => i.issueId === issueId
+    );
+
+    const tableCopy = [...this.state.tableData];
+    const filteredCopy = [...this.state.filteredTableData];
+
+    filteredCopy[currentFilteredIndex].ackUser = user;
+    tableCopy[currentTableIndex].ackUser = user;
+
+    this.setState({
+      filteredTableData: filteredCopy
+    });
+  }
+
+
+
+  async ackIssue() {
+    let { issueToAck, rowAccountId } = this.state;
+    let currentUser = await this.getCurrentUser();
+
+    await this.triggerAckGQL(issueToAck, rowAccountId, currentUser.name);
+  }
+
+  async triggerAckGQL(issue, acctId, ackUser) {
+    let mutation = `
+        mutation {
+          aiIssuesAckIssue(accountId: ${acctId}, issueId: "${issue}") {
+            error
+            result {
+              action
+              issueId
+              accountId
+            }
+          }
+        }
+      `;
+
+      const res = await NerdGraphMutation.mutate({
+        mutation: mutation
+      });
+
+      if (res.error) {
+        console.debug(`Failed to ack issue: ${issue} within account: ${acctId}`);
+        Toast.showToast({
+          title: 'Failed to ack issue.',
+          type: Toast.TYPE.CRITICAL
+        });
+      } else {
+        await this.updateAckCell(issue, ackUser);
+        this.setState({ ackModalHidden: true });
+        AccountStorageMutation.mutate({
+          accountId: this.props.nerdStoreAccount,
+          actionType: AccountStorageMutation.ACTION_TYPE.WRITE_DOCUMENT,
+          collection: 'IssueAcksV2',
+          documentId: issue,
+          document: {
+            user: ackUser
+          }
+        })
+        .then(data => {
+          Toast.showToast({
+            title: 'Issue acknowledged!',
+            type: Toast.TYPE.Normal
+          });
+        })
+        .catch(error => {
+          console.debug(error);
+          Toast.showToast({
+            title: error.message,
+            type: Toast.TYPE.CRITICAL
+          });
+        });
+      }
+  }
+
+  async loadAcksFromNerdStore() {
+    const allAcks = [];
+    AccountStorageQuery.query({
+      accountId: this.props.nerdStoreAccount,
+      collection: 'IssueAcksV2',
+      fetchPolicyType: AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST
+    })
+      .then(({ data }) => {
+        // add brackets ({data}) for just data, remove them for seeing errors
+        if (data.length > 0) {
+          for (let z = 0; z < data.length; z++) {
+            allAcks.push(data[z]);
+          }
+        }
+      })
+      .catch(error => {
+        console.debug(error);
+      });
+
+    return allAcks;
+  }
+
+  removeOldAcks(acksFromNerdStore) {
+    const loadedData = this.state.tableData;
+
+    acksFromNerdStore.forEach(ack => {
+      const index = loadedData.findIndex(
+        i => i.issueId == ack.id
+      );
+      if (index === -1) {
+        this.deleteAckFromNerdStore(ack.id);
+      }
+    });
+  }
+
+  deleteAckFromNerdStore(iId) {
+    AccountStorageMutation.mutate({
+      accountId: this.props.nerdStoreAccount,
+      actionType: AccountStorageMutation.ACTION_TYPE.DELETE_DOCUMENT,
+      collection: 'IssueAcksV2',
+      documentId: iId
+    });
+  }
+
+  getInitials(user) {
+    var initials = user.match(/\b\w/g) || [];
+    initials = ((initials.shift() || '') + (initials.pop() || '')).toUpperCase();
+    return initials;
+  }
+
+  openCloseModal(row) {
+    this.setState({
+      closeModalHidden: false,
+      issueToClose: row.issueId,
+      rowAccountId: row.accountIds[0]
+    });
+  }
+
+  _onCloseModal() {
+    this.setState({
+      closeModalHidden: true,
+      issueToClose: null,
+      rowAccountId: null
+    });
+  }
+
+  removeRow(issueToClose) {
+    let { filteredTableData } = this.state;
+
+    let filteredTableDataCopy = filteredTableData.filter(item => item.issueId !== issueToClose)
+
+    this.setState({
+      filteredTableData: filteredTableDataCopy
+    });
+  }
+
+  async closeIssue() {
+    const { issueToClose, rowAccountId } = this.state;
+    let mutation = `
+        mutation {
+          aiIssuesResolveIssue(accountId: ${rowAccountId}, issueId: "${issueToClose}") {
+            error
+            result {
+              action
+              issueId
+              accountId
+            }
+          }
+        }
+      `;
+
+      const res = await NerdGraphMutation.mutate({
+        mutation: mutation
+      });
+
+      if (res.error) {
+        console.debug(`Failed to close issue: ${issue} within account: ${acctId}`);
+        Toast.showToast({
+          title: 'Failed to close issue.',
+          type: Toast.TYPE.CRITICAL
+        });
+      } else {
+        await this.removeRow(issueToClose) //remove row from table
+        this.setState({ closeModalHidden: true });
+      }
+  }
 
   getFilteredData(searchText) {
     const { tableData } = this.state;
     return tableData.filter(row => {
       return (
         row.accountName.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.conditionName.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.policyName.toLowerCase().includes(searchText.toLowerCase()) ||
         row.priority.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.targetName.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.title.toLowerCase().includes(searchText.toLowerCase())
+        row.title[0].toLowerCase().includes(searchText.toLowerCase()) ||
+        row.mutingState.toLowerCase().includes(searchText.toLowerCase()) ||
+        row.entityNames.toString().toLowerCase().includes(searchText.toLowerCase())
       );
     });
   }
@@ -500,13 +711,10 @@ export default class OpenIncidents extends React.Component {
     return exportableData.filter(row => {
       return (
         row.Account.toLowerCase().includes(searchText.toLowerCase()) ||
-        row['Condition Name']
-          .toLowerCase()
-          .includes(searchText.toLowerCase()) ||
-        row['Policy Name'].toLowerCase().includes(searchText.toLowerCase()) ||
+        row.Title.toLowerCase().includes(searchText.toLowerCase()) ||
         row.Priority.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.Entity.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.Description.toLowerCase().includes(searchText.toLowerCase())
+        row.Muted.toLowerCase().includes(searchText.toLowerCase()) ||
+        row.Entities.toLowerCase().includes(searchText.toLowerCase())
       );
     });
   }
@@ -535,11 +743,9 @@ export default class OpenIncidents extends React.Component {
     const tableHeaders = [
       'ID',
       'Account',
-      'Policy Name',
-      'Condition Name',
-      'Entity',
       'Title',
-      'Description',
+      'IncidentCount',
+      'Entities',
       'Priority',
       'Opened At',
       'Duration',
@@ -564,49 +770,38 @@ export default class OpenIncidents extends React.Component {
           <Table.Header class="sorted ascending">
             <Table.Row>
               {tableHeaders.map((header, k) => {
-                let toolTipText = null;
-                if (header == 'Ack') {
-                  toolTipText = 'No GQL API available for incident acknowledgement';
-                }
-                if (header == 'Close') {
-                  toolTipText = 'No GQL API available for incident closure';
-                }
-                if (header == 'Description') {
-                  toolTipText = 'Custom Violation Description'
-                }
                 return (
-                  <Tooltip text={toolTipText}>
-                    <Table.HeaderCell
-                      sorted={column === header ? direction : undefined}
-                      onClick={() => this.handleSort(header)}
-                      width={this.getWidth(header)}
-                      key={k}
-                    >
-                      {header}
-                    </Table.HeaderCell>
-                  </Tooltip>
+                  <Table.HeaderCell
+                    sorted={column === header ? direction : undefined}
+                    onClick={() => this.handleSort(header)}
+                    width={this.getWidth(header)}
+                    key={k}
+                  >
+                    {header}
+                  </Table.HeaderCell>
                 );
               })}
             </Table.Row>
           </Table.Header>
           <Table.Body>
             {filteredTableData.map((row, p) => {
+
+              let a = row.activatedAt/1000;
+
               return (
-                <Table.Row style={{overflowWrap: 'break-word'}} key={p}>
+                <Table.Row key={p}>
                   <Table.Cell>
-                    <a href={row.incidentLink} target="_blank" rel="noreferrer">
-                      {row.deprecatedIncidentId}
+                    <a href={`https://radar-api.service.newrelic.com/accounts/${row.accountIds[0].toString()}/issues/${row.issueId}?notifier=&action=`} target="_blank" rel="noreferrer">
+                      {row.issueId}
                     </a>
                   </Table.Cell>
                   <Table.Cell>{row.accountName}</Table.Cell>
-                  <Table.Cell>{row.policyName}</Table.Cell>
-                  <Table.Cell>{row.conditionName}</Table.Cell>
-                  <Table.Cell>{row.targetName}</Table.Cell>
-                  <Table.Cell>{row.title}</Table.Cell>
-                  <Table.Cell>{row.description}</Table.Cell>
-                  <Table.Cell>{row.priority == 'warning' ? 'warn' : row.priority}</Table.Cell>
+                  <Table.Cell>{row.title[0]}</Table.Cell>
+                  <Table.Cell>{row.totalIncidents}</Table.Cell>
+                  <Table.Cell>{row.entityNames.toString()}</Table.Cell>
+                  <Table.Cell>{row.priority}</Table.Cell>
                   <Table.Cell>
-                    {moment(row.openTime).format('MM/DD/YY, h:mm a')}
+                    {moment.unix(a).format('MM/DD/YY, h:mm a')}
                   </Table.Cell>
                   <Table.Cell>
                     {row.duration.get('days') > 0
@@ -622,18 +817,30 @@ export default class OpenIncidents extends React.Component {
                       ? `${row.duration.get('seconds')}s `
                       : ''}
                   </Table.Cell>
-                  <Table.Cell>{row.muted.toString()}</Table.Cell>
+                  <Table.Cell>{row.mutingState == 'NOT_MUTED' ? 'false' : 'true'}</Table.Cell>
                   <Table.Cell>
+                  {
+                    row.ackUser == null
+                    ?
                     <Button
-                      disabled
                       onClick={() => this.openAckModal(row)}
                       type={Button.TYPE.PRIMARY}
                       iconType={Button.ICON_TYPE.INTERFACE__OPERATIONS__FOLLOW}
                     />
+                    :
+                    <Tooltip text={row.ackUser} placementType={Tooltip.PLACEMENT_TYPE.BOTTOM}>
+                    <Button
+                      style={{"backgroundColor": "black"}}
+                      type={Button.TYPE.PRIMARY}
+                    >
+                    <strong>{this.getInitials(row.ackUser)}</strong>
+                    </Button>
+                    </Tooltip>
+                  }
                   </Table.Cell>
                   <Table.Cell>
                     <Button
-                      disabled
+                      onClick={() => this.openCloseModal(row)}
                       type={Button.TYPE.PRIMARY}
                       iconType={
                         Button.ICON_TYPE.INTERFACE__OPERATIONS__ALERT__A_REMOVE
@@ -704,13 +911,13 @@ export default class OpenIncidents extends React.Component {
           <Input
             style={{ marginBottom: '3px' }}
             icon="search"
-            placeholder="Search Incidents..."
+            placeholder="Search Issues..."
             onChange={e => this.handleFilterChange(e)}
           />
           &nbsp;&nbsp;&nbsp;
           <Button
             className="exportIncidents"
-            onClick={() => csvDownload(exportableData, 'open_incidents.csv')}
+            onClick={() => csvDownload(exportableData, 'open_issues.csv')}
             type={Button.TYPE.PRIMARY}
             iconType={Button.ICON_TYPE.INTERFACE__OPERATIONS__EXPORT}
           >
@@ -760,13 +967,13 @@ export default class OpenIncidents extends React.Component {
           >
             <HeadingText>
               <strong>
-                Are you sure you want to acknowledge this incident?
+                Are you sure you want to acknowledge this issue?
               </strong>
             </HeadingText>
             <Button
               type={Button.TYPE.PRIMARY}
               className="modalBtn"
-              onClick={() => this.ackIncident()}
+              onClick={() => this.ackIssue()}
             >
               Yes
             </Button>
@@ -774,6 +981,30 @@ export default class OpenIncidents extends React.Component {
               type={Button.TYPE.DESTRUCTIVE}
               className="modalBtn"
               onClick={() => this._onCloseAckModal()}
+            >
+              No
+            </Button>
+          </Modal>
+          <Modal
+            hidden={this.state.closeModalHidden}
+            onClose={() => this._onCloseModal()}
+          >
+            <HeadingText>
+              <strong>
+                Are you sure you want to close this issue?
+              </strong>
+            </HeadingText>
+            <Button
+              type={Button.TYPE.PRIMARY}
+              className="modalBtn"
+              onClick={() => this.closeIssue()}
+            >
+              Yes
+            </Button>
+            <Button
+              type={Button.TYPE.DESTRUCTIVE}
+              className="modalBtn"
+              onClick={() => this._onCloseModal()}
             >
               No
             </Button>

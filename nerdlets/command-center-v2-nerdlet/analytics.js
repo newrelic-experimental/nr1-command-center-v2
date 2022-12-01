@@ -38,10 +38,12 @@ export default class Analytics extends React.Component {
   }
 
   async fetchSingleDashboard(a) {
-    const res = await NerdGraphQuery.query({ query: query.dashboards(a.id) });
+    let { dashboard } = this.props;
 
-    if (res.errors) {
-      console.debug(`Failed to retrieve incident count for account: ${a.id}`);
+    const res = await NerdGraphQuery.query({ query: query.dashboards(a.id, dashboard) });
+
+    if (res.error) {
+      console.debug(`Failed to retrieve dashboard: ${dashboard} within account: ${a.id}`);
     } else {
       let dashboard = res.data.actor.entitySearch.results.entities;
 
@@ -72,67 +74,67 @@ export default class Analytics extends React.Component {
     });
   }
 
-  async getIncidentCount(a) {
+  async getIssueCount(a) {
     const res = await NerdGraphQuery.query({
-      query: query.incidentCount(a.id, this.props.time)
+      query: query.issueCount(a.id, this.props.time)
     });
 
-    if (res.errors) {
-      console.debug(`Failed to retrieve incident count for account: ${a.id}`);
+    if (res.error) {
+      console.debug(`Failed to retrieve issue count for account: ${a.id}`);
     } else {
-      const incidentCount = res.data.actor.account.nrql.results[0].count;
-      return incidentCount;
+      const issueCount = res.data.actor.account.nrql.results[0].count;
+      return issueCount;
     }
   }
 
-  async getIncidentMinutes(a) {
+  async getIssueMinutes(a) {
     const res = await NerdGraphQuery.query({
-      query: query.incidentMinutes(a.id, this.props.time)
+      query: query.issueMinutes(a.id, this.props.time)
     });
 
-    if (res.errors) {
-      console.debug(`Failed to retrieve incident minutes for account: ${a.id}`);
+    if (res.error) {
+      console.debug(`Failed to retrieve issue minutes for account: ${a.id}`);
     } else {
-      const incidentMin = res.data.actor.account.nrql.results[0].minutes;
-      return incidentMin;
+      const issueMin = res.data.actor.account.nrql.results[0].minutes;
+      return issueMin;
     }
   }
 
-  async getIncidentMTTR(a) {
+  async getIssueMTTR(a) {
     const res = await NerdGraphQuery.query({
-      query: query.incidentMTTR(a.id, this.props.time)
+      query: query.issueMTTR(a.id, this.props.time)
     });
 
-    if (res.errors) {
-      console.debug(`Failed to retrieve incident MTTR for account: ${a.id}`);
+    if (res.error) {
+      console.debug(`Failed to retrieve issue MTTR for account: ${a.id}`);
     } else {
-      const incidentMTTR = res.data.actor.account.nrql.results[0].avg;
-      return incidentMTTR;
+      const issueMTTR = res.data.actor.account.nrql.results[0].avg;
+      return issueMTTR;
     }
   }
 
-  async getIncidentUnder5(a) {
+  async getIssueUnder5(a) {
     const res = await NerdGraphQuery.query({
-      query: query.incidentUnder5min(a.id, this.props.time)
+      query: query.issueUnder5min(a.id, this.props.time)
     });
 
-    if (res.errors) {
+    if (res.error) {
       console.debug(
-        `Failed to retrieve incidents under 5min for account: ${a.id}`
+        `Failed to retrieve issues under 5min for account: ${a.id}`
       );
     } else {
-      const incidentUnder5 = res.data.actor.account.nrql.results[0].under5;
-      return incidentUnder5;
+      const issueUnder5 = res.data.actor.account.nrql.results[0].under5;
+      return issueUnder5;
     }
   }
 
   async getAnAccount(acct) {
     return new Promise((resolve, reject) => {
       const anAccountsData = [
-        this.getIncidentCount(acct),
-        this.getIncidentMinutes(acct),
-        this.getIncidentMTTR(acct),
-        this.getIncidentUnder5(acct)
+        this.getIssueCount(acct),
+        this.getIssueMinutes(acct),
+        this.getIssueMTTR(acct),
+        this.getIssueUnder5(acct)
       ];
       const all = [];
 
@@ -140,12 +142,11 @@ export default class Analytics extends React.Component {
         const result = {
           account: acct.name,
           id: acct.id,
-          incidentCount: anAccount[0],
-          incidentMin: anAccount[1],
-          incidentMTTR: anAccount[2],
-          incidentUnder5: anAccount[3]
+          issueCount: anAccount[0],
+          issueMin: anAccount[1],
+          issueMTTR: anAccount[2],
+          issueUnder5: anAccount[3]
         };
-        // console.log(result);
         resolve(result);
       });
     });
@@ -160,33 +161,33 @@ export default class Analytics extends React.Component {
     }
 
     Promise.all(proms).then(acctData => {
-      const totalIncidents = acctData
-        .filter(a => a.incidentCount > 0)
-        .map(c => c.incidentCount);
-      const totalIncidentCount = _.sum(totalIncidents);
+      const totalIssues = acctData
+        .filter(a => a.issueCount > 0)
+        .map(c => c.issueCount);
+      const totalIssueCount = _.sum(totalIssues);
 
-      const totalIncidentMins = acctData
-        .filter(a => a.incidentCount > 0)
-        .map(c => c.incidentMin);
-      const totalIncidentMin = _.sum(totalIncidentMins);
+      const totalIssueMins = acctData
+        .filter(a => a.issueCount > 0)
+        .map(c => c.issueMin);
+      const totalIssueMin = _.sum(totalIssueMins);
 
       const totalMTTRs = acctData
-        .filter(a => a.incidentMTTR !== null)
-        .map(c => c.incidentMTTR);
+        .filter(a => a.issueMTTR !== null)
+        .map(c => c.issueMTTR);
       const totalMTTR = _.sum(totalMTTRs);
       const totalAvgMTTR = totalMTTR / totalMTTRs.length;
 
       const totalPercentUnder5s = acctData
-        .filter(a => a.incidentUnder5 !== null)
-        .map(c => c.incidentUnder5);
+        .filter(a => a.issueUnder5 !== null)
+        .map(c => c.issueUnder5);
       const totalPercentUnder5 = _.sum(totalPercentUnder5s);
       const totalAvgUnder5 = totalPercentUnder5 / totalPercentUnder5s.length;
 
       const totalData = {
-        'Incident Count': totalIncidentCount,
-        'Incident Minutes (accumulated)': totalIncidentMin,
-        'Avg Incident MTTR (minutes)': totalAvgMTTR,
-        'Incidents closed under 5min (%)': totalAvgUnder5
+        'Issue Count': totalIssueCount,
+        'Issue Minutes (accumulated)': totalIssueMin,
+        'Avg Issue MTTR (minutes)': totalAvgMTTR,
+        'Issues closed under 5min (%)': totalAvgUnder5
       };
 
       this.setState({ tableData: acctData, aggregateData: totalData });
@@ -196,21 +197,21 @@ export default class Analytics extends React.Component {
   getTooltip(title) {
     let text = '';
     switch (title) {
-      case 'Incident Count':
+      case 'Issue Count':
         text =
-          'The total count of opened incidents across all accounts in the time window selected.';
+          'The total count of opened Issues across all accounts in the time window selected.';
         break;
-      case 'Incident Minutes (accumulated)':
+      case 'Issue Minutes (accumulated)':
         text =
-          'The total time incidents are open across all accounts in the time window selected.';
+          'The total time Issues are open across all accounts in the time window selected.';
         break;
-      case 'Avg Incident MTTR (minutes)':
+      case 'Avg Issue MTTR (minutes)':
         text =
-          "The average time to resolve an incident across all accounts. Calculated by summing MTTR for all accounts and dividing by the number of accounts in the time window selected. All accounts with 'n/a' are excluded.";
+          "The average time to resolve an Issue across all accounts. Calculated by summing MTTR for all accounts and dividing by the number of accounts in the time window selected. All accounts with 'n/a' are excluded.";
         break;
-      case 'Incidents closed under 5min (%)':
+      case 'Issues closed under 5min (%)':
         text =
-          "The average percentage of incidents closed under 5min across all accounts. Calculated by summing all percentages and dividing by the number of accounts in the time window selected. All accounts with 'n/a' are excluded.";
+          "The average percentage of Issues closed equal to or under 5 minutes across all accounts. Calculated by summing all percentages and dividing by the number of accounts in the time window selected. All accounts with 'n/a' are excluded.";
         break;
     }
 
@@ -267,17 +268,17 @@ export default class Analytics extends React.Component {
       case 'Account ID':
         translated = 'id';
         break;
-      case 'Incident Count':
-        translated = 'incidentCount';
+      case 'Issue Count':
+        translated = 'issueCount';
         break;
-      case 'Incident Minutes (accumulated)':
-        translated = 'incidentMin';
+      case 'Issue Minutes (accumulated)':
+        translated = 'issueMin';
         break;
-      case 'Avg Incident MTTR (minutes)':
-        translated = 'incidentMTTR';
+      case 'Avg Issue MTTR (minutes)':
+        translated = 'issueMTTR';
         break;
-      case '% Incidents closed under 5min':
-        translated = 'incidentUnder5';
+      case 'Issues closed under 5min (%)':
+        translated = 'issueUnder5';
         break;
     }
 
@@ -303,10 +304,10 @@ export default class Analytics extends React.Component {
     const tableHeaders = [
       'Account',
       'Account ID',
-      'Incident Count',
-      'Incident Minutes (accumulated)',
-      'Avg Incident MTTR (minutes)',
-      '% Incidents closed under 5min'
+      'Issue Count',
+      'Issue Minutes (accumulated)',
+      'Avg Issue MTTR (minutes)',
+      '% Issues closed under 5min'
     ];
 
     return (
@@ -349,17 +350,17 @@ export default class Analytics extends React.Component {
                       <a>{row.account}</a>
                     </Table.Cell>
                     <Table.Cell>{row.id}</Table.Cell>
-                    <Table.Cell>{row.incidentCount}</Table.Cell>
-                    <Table.Cell>{Math.round(row.incidentMin)}</Table.Cell>
+                    <Table.Cell>{row.issueCount}</Table.Cell>
+                    <Table.Cell>{Math.round(row.issueMin)}</Table.Cell>
                     <Table.Cell>
-                      {row.incidentMTTR == null
+                      {row.issueMTTR == null
                         ? 'n/a'
-                        : Math.round(row.incidentMTTR)}
+                        : Math.round(row.issueMTTR)}
                     </Table.Cell>
                     <Table.Cell>
-                      {row.incidentUnder5 == null
+                      {row.issueUnder5 == null
                         ? 'n/a'
-                        : row.incidentUnder5.toFixed(2)}
+                        : row.issueUnder5.toFixed(2)}
                     </Table.Cell>
                   </Table.Row>
                 );
@@ -372,12 +373,13 @@ export default class Analytics extends React.Component {
 
   openDrilldown(r) {
     const { dashboards } = this.state;
+    const { dashboard } = this.props;
     const selectedDash = dashboards.filter(d => d.account == r.id);
 
     if (selectedDash[0].guid == null) {
       Toast.showToast({
         title: 'Drilldown dashboard not found.',
-        description: `Please validate \`Operational/Reliability Review\` dashboard exists in account: ${r.id}`,
+        description: `Please validate dashboard: ${dashboard} exists in account: ${r.id}`,
         type: Toast.TYPE.CRITICAL
       });
     } else {
@@ -393,7 +395,6 @@ export default class Analytics extends React.Component {
 
   render() {
     const { loading, tableData, aggregateData, selectedAccount } = this.state;
-    // console.log(this.state);
 
     if (loading || tableData.length == 0) {
       return (

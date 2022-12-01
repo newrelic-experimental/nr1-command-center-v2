@@ -3,6 +3,8 @@ import { AccountsQuery, PlatformStateContext, nerdlet, Tooltip } from 'nr1';
 import { Dimmer, Dropdown, Icon, Loader, Tab } from 'semantic-ui-react';
 import Splash from './splash';
 import OpenIncidents from './open-violations';
+import OpenIssues from './open-issues';
+import OpenAnomalies from './open-anomalies';
 import Analytics from './analytics';
 import config from './config.json';
 
@@ -19,6 +21,7 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
     this.handleChange = this.handleChange.bind(this);
 
     this.accountId = config.accountId; // Account ID (preferably a master account) that you have scoped the nerdpack's uuid to.
+    this.dashboard = config.templateDashboard; //Name of template dashboard deployed across accounts
   }
 
   async componentDidMount() {
@@ -33,8 +36,8 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
 
   async validateUser() {
     const accounts = await AccountsQuery.query();
-    if (accounts.errors) {
-      console.debug(accounts.errors);
+    if (accounts.error) {
+      console.debug(accounts.error);
       this.setState({ validating: false });
     } else {
       this.setState({
@@ -114,16 +117,19 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
             <PlatformStateContext.Consumer>
               {platformUrlState => {
                 let since = '';
+                let rawTime = null;
                 if (platformUrlState && platformUrlState.timeRange) {
                   if (platformUrlState.timeRange.duration) {
                     since = ` SINCE ${platformUrlState.timeRange.duration /
                       60 /
                       1000} MINUTES AGO`;
+                    rawTime = {durationMs: platformUrlState.timeRange.duration};
                   } else if (
                     platformUrlState.timeRange.begin_time &&
                     platformUrlState.timeRange.end_time
                   ) {
                     since = ` SINCE ${platformUrlState.timeRange.begin_time} until ${platformUrlState.timeRange.end_time}`;
+                    rawTime = {startTime: platformUrlState.timeRange.begin_time, endTime: platformUrlState.timeRange.end_time};
                   }
                 }
 
@@ -132,7 +138,20 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
                     menuItem: 'Overview',
                     render: () => (
                       <Tab.Pane>
-                        <Splash time={since} accounts={filteredAccounts} />
+                        <Splash time={since} rawTime={rawTime} accounts={filteredAccounts} />
+                      </Tab.Pane>
+                    )
+                  },
+                  {
+                    menuItem: 'Open Issues',
+                    render: () => (
+                      <Tab.Pane>
+                        <OpenIssues
+                          time={since}
+                          rawTime={rawTime}
+                          accounts={filteredAccounts}
+                          nerdStoreAccount={this.accountId}
+                        />
                       </Tab.Pane>
                     )
                   },
@@ -149,12 +168,16 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
                     )
                   },
                   {
-                    menuItem: 'Open Issues',
-                    render: () => <Tab.Pane>Coming soon!</Tab.Pane>
-                  },
-                  {
                     menuItem: 'Open Anomalies',
-                    render: () => <Tab.Pane>Coming soon!</Tab.Pane>
+                    render: () => (
+                      <Tab.Pane>
+                        <OpenAnomalies
+                          time={since}
+                          accounts={filteredAccounts}
+                          nerdStoreAccount={this.accountId}
+                        />
+                      </Tab.Pane>
+                    )
                   },
                   {
                     menuItem: 'Analytics',
@@ -163,6 +186,7 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
                         <Analytics
                           time={since}
                           accounts={filteredAccounts}
+                          dashboard={this.dashboard}
                         />
                       </Tab.Pane>
                     )

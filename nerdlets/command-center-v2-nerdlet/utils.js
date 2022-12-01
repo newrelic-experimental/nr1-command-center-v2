@@ -1,12 +1,31 @@
 module.exports = {
   /** ******* Overview *******/
-  violationsByPriority: (account, time) => {
-    // pulls **only open** violations by priority
+  issuesByPriority: (account, start, end) => {
+    // pulls **only open** issues by priority
     return `
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "SELECT count(*) FROM (SELECT uniqueCount(event) as 'total', latest(event) as 'state', latest(priority) as 'priority' FROM NrAiIncident where event in ('open','close') facet deprecatedIncidentId limit max) where total=1 and state='open' facet priority limit max ${time}") {
+          aiIssues {
+            issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
+              issues {
+                issueId
+                priority
+              }
+            }
+          }
+        }
+      }
+    }
+    `;
+  },
+  anomalyCount: (account, time) => {
+    // pulls **only open** anomalies - watcher (custom) + non-custom
+    return `
+    {
+      actor {
+        account(id: ${account}) {
+          nrql(query: "SELECT count(*) FROM (SELECT uniqueCount(event) as 'total', latest(event) as 'state' FROM NrAiAnomaly where event in ('open', 'close') facet anomalyId limit max) where total = 1 and state = 'open' limit max ${time}") {
             results
           }
         }
@@ -45,14 +64,75 @@ module.exports = {
     `;
   },
   /** ******* Open Violations *******/
+  /** ******* Open Issues *******/
+  openIssues: (account, start, end) => {
+    // get all activated issues based on time selected
+    return `
+    {
+      actor {
+        account(id: ${account}) {
+          aiIssues {
+            issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
+              issues {
+                accountIds
+                activatedAt
+                acknowledgedBy
+                mutingState
+                issueId
+                totalIncidents
+                priority
+                incidentIds
+                entityNames
+                state
+                title
+              }
+            }
+          }
+        }
+      }
+    }
+    `;
+  },
+  /** ******* Open Issues *******/
+  /** ******* Open Anomalies *******/
+  openAnomalies: (account, time) => {
+    //get all open anomalyIds
+    return `
+    {
+      actor {
+        account(id: ${account}) {
+          nrql(query: "SELECT anomalyId FROM (SELECT uniqueCount(event) as 'total', latest(event) as 'state' FROM NrAiAnomaly where event in ('open', 'close') facet anomalyId limit max) where total = 1 and state = 'open' limit max ${time}") {
+            results
+          }
+        }
+      }
+    }
+    `;
+  },
+  openAnomalyData: (account, anoms, time) => {
+    //get all open anomalyIds
+    return `
+    {
+      actor {
+        account(id: ${account}) {
+          nrql(query: "FROM NrAiAnomaly SELECT anomalyId, entity.accountId, title, entity.name, entity.type, openTime, link where anomalyId in (${anoms}) and event = 'open' LIMIT MAX ${time}") {
+            results
+          }
+        }
+      }
+    }
+    `;
+  },
+
+  /** ******* Open Anomalies *******/
   /** ******* Incident Analytics *******/
-  incidentCount: (account, time) => {
-    // get all opened incidents
+  issueCount: (account, time) => {
+    // get all opened issues
     return `
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "SELECT count(*) as 'count' FROM NrAiIncident where event = 'open' and priority = 'critical' LIMIT MAX ${time}") {
+          nrql(query: "SELECT uniqueCount(issueId) as 'count' FROM NrAiIssue where event in ('activate', 'acknowledge') LIMIT MAX ${time}") {
             results
           }
         }
@@ -60,13 +140,13 @@ module.exports = {
     }
     `;
   },
-  incidentMinutes: (account, time) => {
-    // get total (sum) time incidents are open
+  issueMinutes: (account, time) => {
+    // get total (sum) time issues are open
     return `
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "SELECT sum(durationSeconds)/60 as 'minutes' FROM NrAiIncident where event = 'close' and priority = 'critical' LIMIT MAX ${time}") {
+          nrql(query: "SELECT sum(duration_min) as 'minutes' FROM (SELECT ((latest(closeTime) or aggregationendtime()) - latest(activateTime))/1000/60 as 'duration_min' FROM NrAiIssue where event in ('activate', 'close') facet issueId LIMIT MAX) LIMIT MAX ${time}") {
             results
           }
         }
@@ -74,13 +154,13 @@ module.exports = {
     }
     `;
   },
-  incidentMTTR: (account, time) => {
+  issueMTTR: (account, time) => {
     // get average mtt-resolve
     return `
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "FROM NrAiIncident SELECT average(durationSeconds)/60 as 'avg' where event = 'close' and priority = 'critical' LIMIT MAX ${time}") {
+          nrql(query: "SELECT average(duration_min) as 'avg' FROM (SELECT ((latest(closeTime) or aggregationendtime()) - latest(activateTime))/1000/60 as 'duration_min' FROM NrAiIssue where event = 'close' facet issueId LIMIT MAX) LIMIT MAX ${time}") {
             results
           }
         }
@@ -88,13 +168,13 @@ module.exports = {
     }
     `;
   },
-  incidentUnder5min: (account, time) => {
+  issueUnder5min: (account, time) => {
     // get % incidents closed under 5 min
     return `
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "FROM NrAiIncident SELECT percentage(count(*), where durationSeconds <= 5*60) as 'under5' where event = 'close' and priority = 'critical' LIMIT MAX ${time}") {
+          nrql(query: "SELECT percentage(count(*), where duration_min <=5) as 'under5' FROM (SELECT ((latest(closeTime) or aggregationendtime()) - latest(activateTime))/1000/60 as 'duration_min' FROM NrAiIssue where event = 'close' facet issueId LIMIT MAX) LIMIT MAX ${time}") {
             results
           }
         }
@@ -102,12 +182,12 @@ module.exports = {
     }
     `;
   },
-  dashboards: account => {
+  dashboards: (account, dash) => {
     // template dashboard
     return `
     {
       actor {
-        entitySearch(query: "accountId=${account} and type='DASHBOARD' and name='Operational_Reliability Review'") {
+        entitySearch(query: "accountId=${account} and type='DASHBOARD' and name='${dash}'") {
           results {
             entities {
               accountId
