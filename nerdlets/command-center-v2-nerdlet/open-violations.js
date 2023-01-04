@@ -209,7 +209,7 @@ export default class OpenIncidents extends React.Component {
         return 2;
         break;
       case 'Entity':
-        return 3;
+        return 2;
         break;
       case 'Links':
         return 6;
@@ -556,8 +556,7 @@ export default class OpenIncidents extends React.Component {
       <div
         style={{
           overflowY: 'scroll',
-          display: tableData.length === 0 || tableData == null ? 'none' : 'flex',
-          wordBreak: 'break-word'
+          display: tableData.length === 0 || tableData == null ? 'none' : 'flex'
         }}
       >
         <Table compact selectable sortable celled>
@@ -592,17 +591,17 @@ export default class OpenIncidents extends React.Component {
           <Table.Body>
             {filteredTableData.map((row, p) => {
               return (
-                <Table.Row style={{overflowWrap: 'break-word'}} key={p}>
+                <Table.Row key={p}>
                   <Table.Cell>
                     <a href={row.incidentLink} target="_blank" rel="noreferrer">
                       {row.deprecatedIncidentId}
                     </a>
                   </Table.Cell>
-                  <Table.Cell>{row.accountName}</Table.Cell>
+                  <Table.Cell><p>{row.accountName}</p></Table.Cell>
                   <Table.Cell>{row.policyName}</Table.Cell>
-                  <Table.Cell>{row.conditionName}</Table.Cell>
-                  <Table.Cell>{row.targetName}</Table.Cell>
-                  <Table.Cell>{row.title}</Table.Cell>
+                  <Table.Cell><p style={{wordBreak: 'break-word'}}>{row.conditionName}</p></Table.Cell>
+                  <Table.Cell><p>{row.targetName}</p></Table.Cell>
+                  <Table.Cell><p>{row.title}</p></Table.Cell>
                   <Table.Cell>{row.description}</Table.Cell>
                   <Table.Cell>{row.priority == 'warning' ? 'warn' : row.priority}</Table.Cell>
                   <Table.Cell>

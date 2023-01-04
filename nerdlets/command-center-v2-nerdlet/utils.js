@@ -1,23 +1,44 @@
 module.exports = {
   /** ******* Overview *******/
-  issuesByPriority: (account, start, end) => {
+  issuesByPriority: (account, start, end, cursor) => {
     // pulls **only open** issues by priority
-    return `
-    {
-      actor {
-        account(id: ${account}) {
-          aiIssues {
-            issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
-              issues {
-                issueId
-                priority
+    if (cursor == null) {
+      return `
+      {
+        actor {
+          account(id: ${account}) {
+            aiIssues {
+              issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
+                issues {
+                  issueId
+                  priority
+                }
+                nextCursor
               }
             }
           }
         }
       }
+      `;
+    } else {
+      return `
+      {
+        actor {
+          account(id: ${account}) {
+            aiIssues {
+              issues(filter: {states: ACTIVATED}, cursor: "${cursor}", timeWindow: {endTime: ${end}, startTime: ${start}}) {
+                issues {
+                  issueId
+                  priority
+                }
+                nextCursor
+              }
+            }
+          }
+        }
+      }
+      `;
     }
-    `;
   },
   anomalyCount: (account, time) => {
     // pulls **only open** anomalies - watcher (custom) + non-custom
@@ -65,33 +86,67 @@ module.exports = {
   },
   /** ******* Open Violations *******/
   /** ******* Open Issues *******/
-  openIssues: (account, start, end) => {
+  openIssues: (account, start, end, cursor) => {
     // get all activated issues based on time selected
-    return `
-    {
-      actor {
-        account(id: ${account}) {
-          aiIssues {
-            issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
-              issues {
-                accountIds
-                activatedAt
-                acknowledgedBy
-                mutingState
-                issueId
-                totalIncidents
-                priority
-                incidentIds
-                entityNames
-                state
-                title
+    if (cursor == null) {
+      return `
+      {
+        actor {
+          account(id: ${account}) {
+            aiIssues {
+              issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
+                issues {
+                  accountIds
+                  activatedAt
+                  acknowledgedBy
+                  mutingState
+                  issueId
+                  totalIncidents
+                  priority
+                  incidentIds
+                  entityNames
+                  state
+                  title
+                  conditionName
+                  policyName
+                }
+                nextCursor
               }
             }
           }
         }
       }
+      `;
+    } else {
+      return `
+      {
+        actor {
+          account(id: ${account}) {
+            aiIssues {
+              issues(filter: {states: ACTIVATED}, cursor: "${cursor}" timeWindow: {endTime: ${end}, startTime: ${start}}) {
+                issues {
+                  accountIds
+                  activatedAt
+                  acknowledgedBy
+                  mutingState
+                  issueId
+                  totalIncidents
+                  priority
+                  incidentIds
+                  entityNames
+                  state
+                  title
+                  conditionName
+                  policyName
+                }
+                nextCursor
+              }
+            }
+          }
+        }
+      }
+      `;
     }
-    `;
   },
   /** ******* Open Issues *******/
   /** ******* Open Anomalies *******/

@@ -95,6 +95,8 @@ export default class OpenIssues extends React.Component {
     let table = [];
     let end = null;
     let start = null;
+    let cursor = null;
+    let allIssues = [];
 
     if (rawTime.durationMs) {
       end = Date.now();
@@ -110,7 +112,7 @@ export default class OpenIssues extends React.Component {
     const acks = await this.loadAcksFromNerdStore();
 
     for (const acct of accounts) {
-      issueProms.push(this.getIssues(acct, start, end));
+      issueProms.push(this.getIssues(acct, start, end, allIssues, cursor));
     }
 
     Promise.all(issueProms).then(issues => {
@@ -210,28 +212,37 @@ export default class OpenIssues extends React.Component {
     });
   }
 
-  async getIssues(acct, startTime, endTime) {
+  async getIssues(acct, startTime, endTime, allIssues, c) {
     const res = await NerdGraphQuery.query({
-      query: query.openIssues(acct.id, startTime, endTime)
+      query: query.openIssues(acct.id, startTime, endTime, c)
     });
 
     if (res.error) {
       console.debug(`Failed to retrieve open issues for: ${acct.id}`);
-      const oneAccount = { account: acct.name, id: acct.id, issues: null };
+      console.debug(res.error);
+      const oneAccount = { account: acct.name, id: acct.id, issues: [] };
       return oneAccount;
     } else {
-      const issues = res.data.actor.account.aiIssues.issues.issues;
-      const critCount = issues.filter(i => i.priority == 'CRITICAL').length;
-      const warnCount = issues.filter(i => i.priority == 'HIGH').length;
-      const oneAccount = {
-        account: acct.name,
-        id: acct.id,
-        warning: warnCount,
-        critical: critCount,
-        issues: issues
-      };
+      let nextCursor = res.data.actor.account.aiIssues.issues.nextCursor;
+      let issues = res.data.actor.account.aiIssues.issues.issues;
 
-      return oneAccount;
+      if (nextCursor == null) {
+        allIssues = allIssues.concat(issues);
+        let critCount = allIssues.filter(i => i.priority == 'CRITICAL').length;
+        let warnCount = allIssues.filter(i => i.priority == 'HIGH').length;
+        const oneAccount = {
+          account: acct.name,
+          id: acct.id,
+          warning: warnCount,
+          critical: critCount,
+          issues: allIssues
+        };
+
+        return oneAccount;
+      } else {
+        allIssues = allIssues.concat(issues);
+        return this.getIssues(acct, startTime, endTime, allIssues, nextCursor)
+      }
     }
   }
 
@@ -757,13 +768,13 @@ export default class OpenIssues extends React.Component {
 
     // let maxResultsPerPage = 25;
     // let totalPages = Math.ceil(tableData.length / maxResultsPerPage)
+    //          wordBreak: 'break-word'
 
     return (
       <div
         style={{
           overflowY: 'scroll',
-          display: tableData.length === 0 || tableData == null ? 'none' : 'flex',
-          wordBreak: 'break-word'
+          display: tableData.length === 0 || tableData == null ? 'none' : 'flex'
         }}
       >
         <Table compact selectable sortable celled>
@@ -798,7 +809,7 @@ export default class OpenIssues extends React.Component {
                   <Table.Cell>{row.accountName}</Table.Cell>
                   <Table.Cell>{row.title[0]}</Table.Cell>
                   <Table.Cell>{row.totalIncidents}</Table.Cell>
-                  <Table.Cell>{row.entityNames.toString()}</Table.Cell>
+                  <Table.Cell><p style={{wordBreak: 'break-word'}}>{row.entityNames.toString()}</p></Table.Cell>
                   <Table.Cell>{row.priority}</Table.Cell>
                   <Table.Cell>
                     {moment.unix(a).format('MM/DD/YY, h:mm a')}

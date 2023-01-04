@@ -43,10 +43,11 @@ export default class Splash extends React.Component {
 
   async getAllData() {
     const { accounts, rawTime } = this.props;
-    const issueProms = [];
-    const anomalyProms = [];
+    let issueProms = [];
+    let anomalyProms = [];
     let end = null;
     let start = null;
+    let anAccountsIssues = [];
 
     if (rawTime.durationMs) {
       end = Date.now();
@@ -59,7 +60,7 @@ export default class Splash extends React.Component {
     }
 
     for (const a of accounts) {
-      issueProms.push(this.getIssueCounts(a, start, end));
+      issueProms.push(this.getIssueCounts(a, start, end, anAccountsIssues, null));
       anomalyProms.push(this.getAnomalyCount(a));
     }
 
@@ -68,6 +69,60 @@ export default class Splash extends React.Component {
     let merged = await _.merge(finalIssues, finalAnomalies);
 
     this.setState({ cardData: merged });
+  }
+
+  async getIssueCounts(acct, startTime, endTime, anAccountsIssues, c) {
+      const result = await NerdGraphQuery.query({
+        query: query.issuesByPriority(acct.id, startTime, endTime, c)
+      });
+
+      if (result.error) {
+        console.debug(`Failed fetching issues for account: ${acct}`);
+        console.debug(result.error);
+        return null;
+      } else {
+        let issueCounts = result.data.actor.account.aiIssues.issues.issues;
+        let nextCursor = result.data.actor.account.aiIssues.issues.nextCursor;
+
+          if (nextCursor == null) {
+            anAccountsIssues = anAccountsIssues.concat(issueCounts);
+
+            let criticalCount = anAccountsIssues.filter(i => i.priority == 'CRITICAL').length;
+            let highCount = anAccountsIssues.filter(i => i.priority == 'HIGH').length;
+
+            let anAccount = {
+              account: acct.name,
+              id: acct.id,
+              high: highCount,
+              critical: criticalCount
+            };
+
+            return anAccount;
+          } else {
+            anAccountsIssues = anAccountsIssues.concat(issueCounts);
+            return this.getIssueCounts(acct, startTime, endTime, anAccountsIssues, nextCursor);
+        }
+      }
+  }
+
+  async getAnomalyCount(acct) {
+    const result = await NerdGraphQuery.query({
+      query: query.anomalyCount(acct.id, this.props.time)
+    });
+
+    if (result.error) {
+      console.debug(`Failed fetching anomalies for account: ${acct}`);
+      return null;
+    } else {
+      const anomalyCount = result.data.actor.account.nrql.results[0].count;
+      const anomRecord = {
+        account: acct.name,
+        id: acct.id,
+        anomalyCount: anomalyCount
+      }
+
+      return anomRecord;
+    }
   }
 
   handleSort(e) {
@@ -277,55 +332,6 @@ export default class Splash extends React.Component {
         </Card.Group>
       </>
     );
-  }
-
-  async getIssueCounts(acct, startTime, endTime) {
-    let criticalCount = 0;
-    let highCount = 0;
-
-    const result = await NerdGraphQuery.query({
-      query: query.issuesByPriority(acct.id, startTime, endTime)
-    });
-
-    if (result.error) {
-      console.debug(`Failed fetching issues for account: ${acct}`);
-      return null;
-    } else {
-      const issueCounts = result.data.actor.account.aiIssues.issues.issues;
-      if (issueCounts.length > 0) {
-        criticalCount = issueCounts.filter(i => i.priority == 'CRITICAL').length;
-        highCount = issueCounts.filter(i => i.priority == 'HIGH').length;
-      }
-    }
-
-      const anAccount = {
-        account: acct.name,
-        id: acct.id,
-        high: highCount,
-        critical: criticalCount
-      };
-
-      return anAccount;
-    }
-
-  async getAnomalyCount(acct) {
-    const result = await NerdGraphQuery.query({
-      query: query.anomalyCount(acct.id, this.props.time)
-    });
-
-    if (result.error) {
-      console.debug(`Failed fetching anomalies for account: ${acct}`);
-      return null;
-    } else {
-      const anomalyCount = result.data.actor.account.nrql.results[0].count;
-      const anomRecord = {
-        account: acct.name,
-        id: acct.id,
-        anomalyCount: anomalyCount
-      }
-
-      return anomRecord;
-    }
   }
 
   render() {
