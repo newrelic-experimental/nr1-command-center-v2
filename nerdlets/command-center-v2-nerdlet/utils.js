@@ -1,20 +1,22 @@
 module.exports = {
   /** ******* Overview *******/
-  issuesByPriority: (account, start, end, cursor) => {
+  issuesByPriority: (account, cursor) => {
     // pulls **only open** issues by priority
     if (cursor == null) {
       return `
       {
         actor {
-          account(id: ${account}) {
-            aiIssues {
-              issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
-                issues {
-                  issueId
-                  priority
+          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+            results {
+              entities {
+                name
+                accountId
+                tags {
+                  key
+                  values
                 }
-                nextCursor
               }
+              nextCursor
             }
           }
         }
@@ -24,15 +26,17 @@ module.exports = {
       return `
       {
         actor {
-          account(id: ${account}) {
-            aiIssues {
-              issues(filter: {states: ACTIVATED}, cursor: "${cursor}", timeWindow: {endTime: ${end}, startTime: ${start}}) {
-                issues {
-                  issueId
-                  priority
+          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+            results {
+              entities {
+                name
+                accountId
+                tags {
+                  key
+                  values
                 }
-                nextCursor
               }
+              nextCursor
             }
           }
         }
@@ -86,32 +90,23 @@ module.exports = {
   },
   /** ******* Open Violations *******/
   /** ******* Open Issues *******/
-  openIssues: (account, start, end, cursor) => {
-    // get all activated issues based on time selected
+  openIssues: (account, cursor) => {
+    // get all activated issues (entities)
     if (cursor == null) {
       return `
       {
         actor {
-          account(id: ${account}) {
-            aiIssues {
-              issues(filter: {states: ACTIVATED}, timeWindow: {endTime: ${end}, startTime: ${start}}) {
-                issues {
-                  accountIds
-                  activatedAt
-                  acknowledgedBy
-                  mutingState
-                  issueId
-                  totalIncidents
-                  priority
-                  incidentIds
-                  entityNames
-                  state
-                  title
-                  conditionName
-                  policyName
+          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+            results {
+              entities {
+                name
+                accountId
+                tags {
+                  key
+                  values
                 }
-                nextCursor
               }
+              nextCursor
             }
           }
         }
@@ -121,26 +116,17 @@ module.exports = {
       return `
       {
         actor {
-          account(id: ${account}) {
-            aiIssues {
-              issues(filter: {states: ACTIVATED}, cursor: "${cursor}" timeWindow: {endTime: ${end}, startTime: ${start}}) {
-                issues {
-                  accountIds
-                  activatedAt
-                  acknowledgedBy
-                  mutingState
-                  issueId
-                  totalIncidents
-                  priority
-                  incidentIds
-                  entityNames
-                  state
-                  title
-                  conditionName
-                  policyName
+          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+            results {
+              entities {
+                name
+                accountId
+                tags {
+                  key
+                  values
                 }
-                nextCursor
               }
+              nextCursor
             }
           }
         }

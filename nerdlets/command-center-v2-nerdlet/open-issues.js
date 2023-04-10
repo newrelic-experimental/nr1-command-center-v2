@@ -72,7 +72,7 @@ export default class OpenIssues extends React.Component {
 
       for (var s=0; s<tableCopy.length; s++) {
         for (var p=0; p<this.props.accounts.length; p++) {
-          if (tableCopy[s].accountIds[0] == this.props.accounts[p].id) {
+          if (tableCopy[s].accountId == this.props.accounts[p].id) {
             filteredTable.push(tableCopy[s]);
           }
         }
@@ -93,45 +93,61 @@ export default class OpenIssues extends React.Component {
     const currTime = new moment().format('LT');
     const exportable = [];
     let table = [];
-    let end = null;
-    let start = null;
+    // let end = null;
+    // let start = null;
     let cursor = null;
-    let allIssues = [];
+    // let allIssues = [];
 
-    if (rawTime.durationMs) {
-      end = Date.now();
-      start = end - rawTime.durationMs;
-    }
-
-    if (rawTime.startTime) {
-      end = rawTime.endTime;
-      start = rawTime.startTime;
-    }
+    // if (rawTime.durationMs) {
+    //   end = Date.now();
+    //   start = end - rawTime.durationMs;
+    // }
+    //
+    // if (rawTime.startTime) {
+    //   end = rawTime.endTime;
+    //   start = rawTime.startTime;
+    // }
 
     const links = await this.loadLinksFromNerdStore();
     const acks = await this.loadAcksFromNerdStore();
 
     for (const acct of accounts) {
-      issueProms.push(this.getIssues(acct, start, end, allIssues, cursor));
+      let allIssues = [];
+      issueProms.push(this.getIssues(acct, allIssues, cursor));
     }
 
     Promise.all(issueProms).then(issues => {
+      console.log(issues);
       for (let k=0; k < issues.length; k++) {
         if (issues[k].issues.length > 0) {
           for (let i=0; i < issues[k].issues.length; i++) {
             issues[k].issues[i].accountName = issues[k].account;
 
             let now = moment();
-            let activated = issues[k].issues[i].activatedAt/1000;
+            let activatedObj = issues[k].issues[i].tags.find(i => i.key == 'activatedAt');
+            let activated = Number(activatedObj['values'][0])/1000;
             let momentActivated = moment.unix(activated);
             let duration = moment.duration(now.diff(momentActivated));
             issues[k].issues[i].duration = duration;
 
+            let tags = issues[k].issues[i].tags;
+            for (var t=0; t < tags.length; t++) {
+              let key = tags[t].key;
+
+              if (key == 'activatedAt' || key == 'accountId' || key == 'incidentCount' || key == 'policyId' || key == 'conditionId') {
+                issues[k].issues[i][key] = Number(tags[t].values[0]);
+              } else if (key == 'relatedEntityName') {
+                issues[k].issues[i][key] = tags[t].values;
+              } else {
+                issues[k].issues[i][key] = tags[t].values[0];
+              }
+            }
+
             const oneExportableResult = {
               Account: issues[k].account,
-              Title: issues[k].issues[i].title[0],
-              IncidentCount: issues[k].issues[i].totalIncidents,
-              Entities: issues[k].issues[i].entityNames.toString(),
+              Title: issues[k].issues[i].name,
+              IncidentCount: issues[k].issues[i].incidentCount,
+              Entities: issues[k].issues[i].relatedEntityName.toString(),
               Priority: issues[k].issues[i].priority,
               Muted: issues[k].issues[i].mutingState,
               'Opened At': moment.unix(activated).format(
@@ -192,10 +208,12 @@ export default class OpenIssues extends React.Component {
         } //if
       } //outer for
 
+      let sortedTable = _.orderBy(table, ['activatedAt'], ['desc']);
+
       this.setState(
         {
-          tableData: table,
-          filteredTableData: table,
+          tableData: sortedTable,
+          filteredTableData: sortedTable,
           exportableData: exportable,
           currentTime: currTime
         },
@@ -212,9 +230,9 @@ export default class OpenIssues extends React.Component {
     });
   }
 
-  async getIssues(acct, startTime, endTime, allIssues, c) {
+  async getIssues(acct, allIssues, c) {
     const res = await NerdGraphQuery.query({
-      query: query.openIssues(acct.id, startTime, endTime, c)
+      query: query.openIssues(acct.id, c)
     });
 
     if (res.error) {
@@ -223,25 +241,23 @@ export default class OpenIssues extends React.Component {
       const oneAccount = { account: acct.name, id: acct.id, issues: [] };
       return oneAccount;
     } else {
-      let nextCursor = res.data.actor.account.aiIssues.issues.nextCursor;
-      let issues = res.data.actor.account.aiIssues.issues.issues;
+      let nextCursor = res.data.actor.entitySearch.results.nextCursor;
+      let issues = res.data.actor.entitySearch.results.entities;
 
       if (nextCursor == null) {
         allIssues = allIssues.concat(issues);
-        let critCount = allIssues.filter(i => i.priority == 'CRITICAL').length;
-        let warnCount = allIssues.filter(i => i.priority == 'HIGH').length;
+        console.log('all');
+        console.log(allIssues)
         const oneAccount = {
           account: acct.name,
           id: acct.id,
-          warning: warnCount,
-          critical: critCount,
           issues: allIssues
         };
 
         return oneAccount;
       } else {
         allIssues = allIssues.concat(issues);
-        return this.getIssues(acct, startTime, endTime, allIssues, nextCursor)
+        return this.getIssues(acct, allIssues, nextCursor)
       }
     }
   }
@@ -364,7 +380,7 @@ export default class OpenIssues extends React.Component {
   openLinkModal(row) {
     this.setState({
       linkModalHidden: false,
-      rowAccountId: row.accountIds[0],
+      rowAccountId: row.accountId,
       rowIssueId: row.issueId
     });
   }
@@ -501,7 +517,7 @@ export default class OpenIssues extends React.Component {
     this.setState({
       ackModalHidden: false,
       issueToAck: row.issueId,
-      rowAccountId: row.accountIds[0],
+      rowAccountId: row.accountId,
       ackUser: row.ackUser
     });
   }
@@ -650,7 +666,7 @@ export default class OpenIssues extends React.Component {
     this.setState({
       closeModalHidden: false,
       issueToClose: row.issueId,
-      rowAccountId: row.accountIds[0]
+      rowAccountId: row.accountId
     });
   }
 
@@ -709,9 +725,9 @@ export default class OpenIssues extends React.Component {
       return (
         row.accountName.toLowerCase().includes(searchText.toLowerCase()) ||
         row.priority.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.title[0].toLowerCase().includes(searchText.toLowerCase()) ||
+        row.name.toLowerCase().includes(searchText.toLowerCase()) ||
         row.mutingState.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.entityNames.toString().toLowerCase().includes(searchText.toLowerCase())
+        row.relatedEntityName.toString().toLowerCase().includes(searchText.toLowerCase())
       );
     });
   }
@@ -802,14 +818,14 @@ export default class OpenIssues extends React.Component {
               return (
                 <Table.Row key={p}>
                   <Table.Cell>
-                    <a href={`https://radar-api.service.newrelic.com/accounts/${row.accountIds[0].toString()}/issues/${row.issueId}?notifier=&action=`} target="_blank" rel="noreferrer">
+                    <a href={`https://radar-api.service.newrelic.com/accounts/${row.accountId.toString()}/issues/${row.issueId}?notifier=&action=`} target="_blank" rel="noreferrer">
                       {row.issueId}
                     </a>
                   </Table.Cell>
                   <Table.Cell>{row.accountName}</Table.Cell>
-                  <Table.Cell>{row.title[0]}</Table.Cell>
-                  <Table.Cell>{row.totalIncidents}</Table.Cell>
-                  <Table.Cell><p style={{wordBreak: 'break-word'}}>{row.entityNames.toString()}</p></Table.Cell>
+                  <Table.Cell>{row.name}</Table.Cell>
+                  <Table.Cell>{row.incidentCount}</Table.Cell>
+                  <Table.Cell><p style={{wordBreak: 'break-word'}}>{row.relatedEntityName.toString()}</p></Table.Cell>
                   <Table.Cell>{row.priority}</Table.Cell>
                   <Table.Cell>
                     {moment.unix(a).format('MM/DD/YY, h:mm a')}

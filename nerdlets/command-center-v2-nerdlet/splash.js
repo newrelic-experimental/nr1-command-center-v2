@@ -60,7 +60,7 @@ export default class Splash extends React.Component {
     }
 
     for (const a of accounts) {
-      issueProms.push(this.getIssueCounts(a, start, end, anAccountsIssues, null));
+      issueProms.push(this.getIssueCounts(a, anAccountsIssues, null));
       anomalyProms.push(this.getAnomalyCount(a));
     }
 
@@ -71,9 +71,9 @@ export default class Splash extends React.Component {
     this.setState({ cardData: merged });
   }
 
-  async getIssueCounts(acct, startTime, endTime, anAccountsIssues, c) {
+  async getIssueCounts(acct, anAccountsIssues, c) {
       const result = await NerdGraphQuery.query({
-        query: query.issuesByPriority(acct.id, startTime, endTime, c)
+        query: query.issuesByPriority(acct.id, c)
       });
 
       if (result.error) {
@@ -81,14 +81,22 @@ export default class Splash extends React.Component {
         console.debug(result.error);
         return null;
       } else {
-        let issueCounts = result.data.actor.account.aiIssues.issues.issues;
-        let nextCursor = result.data.actor.account.aiIssues.issues.nextCursor;
+        let issueCounts = result.data.actor.entitySearch.results.entities;
+        let nextCursor = result.data.actor.entitySearch.results.nextCursor;
 
           if (nextCursor == null) {
             anAccountsIssues = anAccountsIssues.concat(issueCounts);
+            console.log(anAccountsIssues);
 
-            let criticalCount = anAccountsIssues.filter(i => i.priority == 'CRITICAL').length;
-            let highCount = anAccountsIssues.filter(i => i.priority == 'HIGH').length;
+            let criticalCount = anAccountsIssues.filter(issue => {
+              let priorityObj = issue.tags.find(k => k.key == 'priority');
+              return priorityObj.values[0] == 'CRITICAL';
+            }).length;
+
+            let highCount = anAccountsIssues.filter(issue => {
+              let priorityObj = issue.tags.find(k => k.key == 'priority');
+              return priorityObj.values[0] == 'HIGH';
+            }).length;
 
             let anAccount = {
               account: acct.name,
@@ -100,7 +108,7 @@ export default class Splash extends React.Component {
             return anAccount;
           } else {
             anAccountsIssues = anAccountsIssues.concat(issueCounts);
-            return this.getIssueCounts(acct, startTime, endTime, anAccountsIssues, nextCursor);
+            return this.getIssueCounts(acct, anAccountsIssues, nextCursor);
         }
       }
   }
@@ -261,18 +269,9 @@ export default class Splash extends React.Component {
     }
   }
 
-  handleCardClick = e => { //TODO: Implement new Issues feed
-    const url = `https://alerts.newrelic.com/accounts/${e.currentTarget.id}/incidents`;
-    // const url = `https://one.newrelic.com/nrai/feed?account=${e.currentTarget.id}`;
+  handleCardClick = e => { //TODO: Implement new Issues feed - no way to currently set accountId in Alerts/AI viz though
+    const url = `https://one.newrelic.com/nr1-core/navigator/home?account=${e.currentTarget.id}&duration=86400000&filters=%28domain%20%3D%20%27AIOPS%27%20AND%20type%20%3D%20%27ISSUE%27%29`
     window.open(url, '_blank');
-    // let acct = Number(e.currentTarget.id);
-
-    // navigation.openStackedNerdlet({
-    //   id: 'nrai.filtered-feed',
-    //   urlState: {
-    //     accountId: 1482036
-    //   }
-    // });
   };
 
   renderCards() {

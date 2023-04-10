@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccountsQuery, PlatformStateContext, nerdlet, Tooltip } from 'nr1';
+import { AccountsQuery, PlatformStateContext, navigation, nerdlet, NerdletStateContext, Tooltip } from 'nr1';
 import { Dimmer, Dropdown, Icon, Loader, Tab } from 'semantic-ui-react';
 import Splash from './splash';
 import OpenIncidents from './open-violations';
@@ -20,7 +20,7 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
 
     this.handleChange = this.handleChange.bind(this);
 
-    this.accountId = config.accountId; // Account ID (preferably a master account) that you have scoped the nerdpack's uuid to.
+    this.accountId = config.accountId; // Account ID (preferably a master account) that you have scoped the nerdpack's uuid to - used to save stateful resources.
     this.dashboard = config.templateDashboard; //Name of template dashboard deployed across accounts
   }
 
@@ -195,8 +195,16 @@ export default class CommandCenterV2NerdletNerdlet extends React.Component {
 
                 return (
                   <>
-                    {this.renderDropdown()}
-                    <Tab panes={panes} />
+                    <NerdletStateContext.Consumer>
+                    {(nerdletState) => {
+                      return (
+                        <>
+                        {this.renderDropdown()}
+                        <Tab panes={panes} />
+                        </>
+                      )
+                    }}
+                    </NerdletStateContext.Consumer>
                   </>
                 );
               }}
