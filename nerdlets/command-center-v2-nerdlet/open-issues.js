@@ -117,8 +117,9 @@ export default class OpenIssues extends React.Component {
     }
 
     Promise.all(issueProms).then(issues => {
-      console.log(issues);
+      let entities = "";
       for (let k=0; k < issues.length; k++) {
+        entities = "";
         if (issues[k].issues.length > 0) {
           for (let i=0; i < issues[k].issues.length; i++) {
             issues[k].issues[i].accountName = issues[k].account;
@@ -143,11 +144,15 @@ export default class OpenIssues extends React.Component {
               }
             }
 
+            if (typeof issues[k].issues[i].relatedEntityName !== "undefined" && issues[k].issues[i].relatedEntityName !== null) {
+              entities = issues[k].issues[i].relatedEntityName.toString();
+            }
+
             const oneExportableResult = {
               Account: issues[k].account,
               Title: issues[k].issues[i].name,
               IncidentCount: issues[k].issues[i].incidentCount,
-              Entities: issues[k].issues[i].relatedEntityName.toString(),
+              Entities: entities,
               Priority: issues[k].issues[i].priority,
               Muted: issues[k].issues[i].mutingState,
               'Opened At': moment.unix(activated).format(
@@ -246,8 +251,6 @@ export default class OpenIssues extends React.Component {
 
       if (nextCursor == null) {
         allIssues = allIssues.concat(issues);
-        console.log('all');
-        console.log(allIssues)
         const oneAccount = {
           account: acct.name,
           id: acct.id,
@@ -708,7 +711,7 @@ export default class OpenIssues extends React.Component {
       });
 
       if (res.error) {
-        console.debug(`Failed to close issue: ${issue} within account: ${acctId}`);
+        console.debug(`Failed to close issue: ${issueToClose} within account: ${rowAccountId}`);
         Toast.showToast({
           title: 'Failed to close issue.',
           type: Toast.TYPE.CRITICAL
@@ -716,6 +719,10 @@ export default class OpenIssues extends React.Component {
       } else {
         await this.removeRow(issueToClose) //remove row from table
         this.setState({ closeModalHidden: true });
+        Toast.showToast({
+          title: 'Issue closed!',
+          type: Toast.TYPE.Normal
+        });
       }
   }
 
@@ -825,7 +832,7 @@ export default class OpenIssues extends React.Component {
                   <Table.Cell>{row.accountName}</Table.Cell>
                   <Table.Cell>{row.name}</Table.Cell>
                   <Table.Cell>{row.incidentCount}</Table.Cell>
-                  <Table.Cell><p style={{wordBreak: 'break-word'}}>{row.relatedEntityName.toString()}</p></Table.Cell>
+                  <Table.Cell><p style={{wordBreak: 'break-word'}}>{typeof row.relatedEntityName == "undefined" ? "" : row.relatedEntityName.toString()}</p></Table.Cell>
                   <Table.Cell>{row.priority}</Table.Cell>
                   <Table.Cell>
                     {moment.unix(a).format('MM/DD/YY, h:mm a')}

@@ -13,7 +13,7 @@ This application aggregates incidents, anomalies, and issues across many account
 - Holistic, filterable/exportable view of open incidents, issues, and anomalies across many accounts.
 - Auto refresh configuration of open incidents, issues, and anomalies
 - Persistent links to correlate with individual incidents and issues
-- Acknowledge and close issues directly in list view
+- Acknowledge and close issues/incidents directly in list view
 - Analytics for total issue count, accumulated issue minutes, MTTR, and % of issues closed under 5 minutes.
 - Configurable linked dashboard that can be used as a tool for operational/reliability reviews. [Template provided here - this can be added to all accounts](dashboards/ops_template.json)
 

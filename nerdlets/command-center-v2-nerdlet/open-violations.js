@@ -6,6 +6,7 @@ import {
   HeadingText,
   Modal,
   Icon,
+  NerdGraphMutation,
   NerdGraphQuery,
   Spinner,
   TextField,
@@ -42,7 +43,9 @@ export default class OpenIncidents extends React.Component {
       rowAccountId: null,
       rowIncidentId: null,
       ackModalHidden: true,
+      closeModalHidden: true,
       incToAck: null,
+      incToClose: null,
       currentTime: null
     };
   }
@@ -87,7 +90,7 @@ export default class OpenIncidents extends React.Component {
     Promise.all(vioProms).then(violations => {
       const allViolations = [];
       for (const vSet of violations) {
-        const vArray = vSet.violations.map(v => v.deprecatedIncidentId);
+        const vArray = vSet.violations.map(v => `'${v.incidentId}'`).join(',');
         allViolations.push(this.getViolationData(vSet, vArray.toString()));
       }
 
@@ -110,7 +113,7 @@ export default class OpenIncidents extends React.Component {
           let noteDisplay = null;
           let noteLink = null;
           for (let p = 0; p < links.length; p++) {
-            if (formattedTable[k].deprecatedIncidentId == Number(links[p].id)) {
+            if (formattedTable[k].incidentId == Number(links[p].id)) {
               noteDisplay = links[p].document.displayText;
               noteLink = links[p].document.linkText;
               break;
@@ -233,7 +236,7 @@ export default class OpenIncidents extends React.Component {
 
     switch (clickedCol) {
       case 'ID':
-        translated = 'deprecatedIncidentId';
+        translated = 'incidentId';
         break;
       case 'Account':
         translated = 'accountName';
@@ -310,7 +313,7 @@ export default class OpenIncidents extends React.Component {
     this.setState({
       linkModalHidden: false,
       rowAccountId: row['account.id'],
-      rowIncidentId: row.deprecatedIncidentId
+      rowIncidentId: row.incidentId
     });
   }
 
@@ -343,7 +346,7 @@ export default class OpenIncidents extends React.Component {
 
   updateLinkCell(d, l, iKey) {
     const currentIndex = this.state.tableData.findIndex(
-      inc => inc.deprecatedIncidentId === iKey
+      inc => inc.incidentId === iKey
     );
     const tableCopy = [...this.state.tableData];
     tableCopy[currentIndex].display = d;
@@ -425,7 +428,7 @@ export default class OpenIncidents extends React.Component {
 
     linksFromNerdStore.forEach(lnk => {
       const index = loadedData.findIndex(
-        v => v.deprecatedIncidentId == Number(lnk.id)
+        v => v.incidentId == Number(lnk.id)
       );
       if (index === -1) {
         this.deleteLinkFromNerdStore(lnk.id);
@@ -445,7 +448,7 @@ export default class OpenIncidents extends React.Component {
   openAckModal(row) {
     this.setState({
       ackModalHidden: false,
-      incToAck: row.deprecatedIncidentId
+      incToAck: row.incidentId
     });
   }
 
@@ -521,6 +524,64 @@ export default class OpenIncidents extends React.Component {
     });
   }
 
+  openCloseModal(row) {
+    this.setState({
+      closeModalHidden: false,
+      incToClose: row.incidentId,
+      rowAccountId: row['account.id']
+    });
+  }
+
+  _onCloseModal() {
+    this.setState({
+      closeModalHidden: true,
+      incToClose: null,
+      rowAccountId: null
+    });
+  }
+
+  removeRow(incidentToClose) {
+    let { filteredTableData } = this.state;
+
+    let filteredTableDataCopy = filteredTableData.filter(item => item.incidentId !== incidentToClose)
+
+    this.setState({
+      filteredTableData: filteredTableDataCopy
+    });
+  }
+
+  async closeIncident() {
+    const { incToClose, rowAccountId } = this.state;
+    let mutation = `
+        mutation {
+          aiIssuesCloseIncident(accountId: ${rowAccountId}, incidentId: "${incToClose}") {
+            error
+            incidentId
+            accountId
+          }
+        }
+      `;
+
+      const res = await NerdGraphMutation.mutate({
+        mutation: mutation
+      });
+
+      if (res.error || res.data.aiIssuesCloseIncident.error) {
+        console.debug(`Failed to close incident: ${incToClose} within account: ${rowAccountId}`);
+        Toast.showToast({
+          title: 'Failed to close incident.',
+          type: Toast.TYPE.CRITICAL
+        });
+      } else {
+        await this.removeRow(incToClose) //remove row from table
+        this.setState({ closeModalHidden: true });
+        Toast.showToast({
+          title: 'Incident closed!',
+          type: Toast.TYPE.Normal
+        });
+      }
+  }
+
   renderTable() {
     const {
       searchText,
@@ -567,9 +628,6 @@ export default class OpenIncidents extends React.Component {
                 if (header == 'Ack') {
                   toolTipText = 'No GQL API available for incident acknowledgement';
                 }
-                if (header == 'Close') {
-                  toolTipText = 'No GQL API available for incident closure';
-                }
                 if (header == 'Description') {
                   toolTipText = 'Custom Violation Description'
                 }
@@ -594,7 +652,7 @@ export default class OpenIncidents extends React.Component {
                 <Table.Row key={p}>
                   <Table.Cell>
                     <a href={row.incidentLink} target="_blank" rel="noreferrer">
-                      {row.deprecatedIncidentId}
+                      {row.incidentId}
                     </a>
                   </Table.Cell>
                   <Table.Cell><p>{row.accountName}</p></Table.Cell>
@@ -632,7 +690,7 @@ export default class OpenIncidents extends React.Component {
                   </Table.Cell>
                   <Table.Cell>
                     <Button
-                      disabled
+                      onClick={() => this.openCloseModal(row)}
                       type={Button.TYPE.PRIMARY}
                       iconType={
                         Button.ICON_TYPE.INTERFACE__OPERATIONS__ALERT__A_REMOVE
@@ -773,6 +831,30 @@ export default class OpenIncidents extends React.Component {
               type={Button.TYPE.DESTRUCTIVE}
               className="modalBtn"
               onClick={() => this._onCloseAckModal()}
+            >
+              No
+            </Button>
+          </Modal>
+          <Modal
+            hidden={this.state.closeModalHidden}
+            onClose={() => this._onCloseModal()}
+          >
+            <HeadingText>
+              <strong>
+                Are you sure you want to close this incident?
+              </strong>
+            </HeadingText>
+            <Button
+              type={Button.TYPE.PRIMARY}
+              className="modalBtn"
+              onClick={() => this.closeIncident()}
+            >
+              Yes
+            </Button>
+            <Button
+              type={Button.TYPE.DESTRUCTIVE}
+              className="modalBtn"
+              onClick={() => this._onCloseModal()}
             >
               No
             </Button>

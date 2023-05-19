@@ -86,7 +86,6 @@ export default class Splash extends React.Component {
 
           if (nextCursor == null) {
             anAccountsIssues = anAccountsIssues.concat(issueCounts);
-            console.log(anAccountsIssues);
 
             let criticalCount = anAccountsIssues.filter(issue => {
               let priorityObj = issue.tags.find(k => k.key == 'priority');

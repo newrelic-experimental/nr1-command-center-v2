@@ -66,7 +66,7 @@ module.exports = {
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "SELECT deprecatedIncidentId, priority FROM (SELECT uniqueCount(event) as 'total', latest(event) as 'state', latest(priority) as 'priority' FROM NrAiIncident where event in ('open','close') facet deprecatedIncidentId limit max) where total=1 and state='open' limit max ${time}") {
+          nrql(query: "SELECT incidentId, priority FROM (SELECT uniqueCount(event) as 'total', latest(event) as 'state', latest(priority) as 'priority' FROM NrAiIncident where event in ('open','close') and evaluationType != 'anomaly' facet incidentId limit max) where total=1 and state='open' limit max ${time}") {
             results
           }
         }
@@ -80,7 +80,7 @@ module.exports = {
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "FROM NrAiIncident SELECT deprecatedIncidentId, account.id, title, targetName, policyName, conditionName, openTime, priority, muted, incidentLink, description where deprecatedIncidentId IN (${vios}) and event = 'open' LIMIT MAX ${time}") {
+          nrql(query: "FROM NrAiIncident SELECT incidentId, account.id, title, targetName, policyName, conditionName, openTime, priority, muted, incidentLink, description where incidentId IN (${vios}) and event = 'open' LIMIT MAX ${time}") {
             results
           }
         }
