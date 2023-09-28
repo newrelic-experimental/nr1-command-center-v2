@@ -278,7 +278,7 @@ export default class Splash extends React.Component {
 
     return (
       <>
-        <Card.Group style={{ textAlign: 'center' }} itemsPerRow={4}>
+        <Card.Group style={{ textAlign: 'center' }} itemsPerRow={3}>
           {cardData
             .filter(card => {
               return (

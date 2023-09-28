@@ -27,7 +27,7 @@ module.exports = {
       {
         actor {
           entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
-            results {
+            results(cursor: "${cursor}") {
               entities {
                 name
                 accountId
@@ -117,7 +117,7 @@ module.exports = {
       {
         actor {
           entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
-            results {
+            results(cursor: "${cursor}") {
               entities {
                 name
                 accountId

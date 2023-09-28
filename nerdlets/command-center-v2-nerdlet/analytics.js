@@ -1,6 +1,6 @@
 import React from 'react';
 import { navigation, NerdGraphQuery, Spinner, Toast, Tooltip } from 'nr1';
-import { Card, Icon, Input, Statistic, Table } from 'semantic-ui-react';
+import { Card, Icon, Input, Statistic, Tab, Table } from 'semantic-ui-react';
 import _ from 'lodash';
 
 const query = require('./utils');
@@ -395,6 +395,40 @@ export default class Analytics extends React.Component {
 
   render() {
     const { loading, tableData, aggregateData, selectedAccount } = this.state;
+
+    // const panes = [
+    //   {
+    //     menuItem: 'Issues',
+    //     render: () => (
+    //       <Tab.Pane>
+    //         <>
+    //           {aggregateData == null
+    //             ? 'Failed to fetch summary data'
+    //             : this.renderStats()}
+    //           <Input
+    //             style={{ marginBottom: '3px' }}
+    //             icon="search"
+    //             placeholder="Search Accounts..."
+    //             onChange={e => this.setState({ searchText: e.target.value })}
+    //           />
+    //           &nbsp;&nbsp;&nbsp;
+    //           {tableData.length == 0
+    //             ? 'Failed to fetch account data'
+    //             : this.renderTable()}
+    //           {selectedAccount !== null ? this.renderDrilldown() : ''}
+    //         </>
+    //       </Tab.Pane>
+    //     )
+    //   },
+    //   {
+    //     menuItem: 'Notifications',
+    //     render: () => (
+    //       <Tab.Pane>
+    //         <h1>placeholder</h1>
+    //       </Tab.Pane>
+    //     )
+    //   }
+    // ]
 
     if (loading || tableData.length == 0) {
       return (
