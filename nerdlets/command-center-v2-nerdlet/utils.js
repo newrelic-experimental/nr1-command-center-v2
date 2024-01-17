@@ -6,7 +6,7 @@ module.exports = {
       return `
       {
         actor {
-          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+          entitySearch(query: "domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}'") {
             results {
               entities {
                 name
@@ -26,7 +26,7 @@ module.exports = {
       return `
       {
         actor {
-          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+          entitySearch(query: "domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}'") {
             results(cursor: "${cursor}") {
               entities {
                 name
@@ -96,7 +96,7 @@ module.exports = {
       return `
       {
         actor {
-          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+          entitySearch(query: "domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}'") {
             results {
               entities {
                 name
@@ -116,7 +116,7 @@ module.exports = {
       return `
       {
         actor {
-          entitySearch(query: "alertable IS TRUE AND (domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}')") {
+          entitySearch(query: "domain = 'AIOPS' AND type = 'ISSUE' and tags.source = 'newrelic' AND tags.accountId = '${account}'") {
             results(cursor: "${cursor}") {
               entities {
                 name
