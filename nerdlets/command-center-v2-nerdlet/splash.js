@@ -268,8 +268,13 @@ export default class Splash extends React.Component {
     }
   }
 
-  handleCardClick = e => { //TODO: Implement new Issues feed - no way to currently set accountId in Alerts/AI viz though
-    const url = `https://one.newrelic.com/nr1-core/navigator/home?account=${e.currentTarget.id}&duration=86400000&filters=%28domain%20%3D%20%27AIOPS%27%20AND%20type%20%3D%20%27ISSUE%27%29`
+  handleCardClick = e => {
+    let d = window.location.href
+    let url = `https://one.newrelic.com/alerts-ai?account=${e.currentTarget.id}&duration=86400000`;
+    if (d.includes('one.eu')) {
+      url = `https://one.eu.newrelic.com/alerts-ai?account=${e.currentTarget.id}&duration=86400000`;
+    }
+    //const url = `https://one.newrelic.com/nr1-core/navigator/home?account=${e.currentTarget.id}&duration=86400000&filters=%28domain%20%3D%20%27AIOPS%27%20AND%20type%20%3D%20%27ISSUE%27%29`
     window.open(url, '_blank');
   };
 

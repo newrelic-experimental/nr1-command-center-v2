@@ -793,6 +793,12 @@ export default class OpenIssues extends React.Component {
     // let totalPages = Math.ceil(tableData.length / maxResultsPerPage)
     //          wordBreak: 'break-word'
 
+    let domain = window.location.href
+    let base = 'https://radar-api.service.newrelic.com';
+    if (domain.includes('one.eu')) {
+      base = 'https://radar-api.service.eu.newrelic.com';
+    }
+
     return (
       <div
         style={{
@@ -825,7 +831,7 @@ export default class OpenIssues extends React.Component {
               return (
                 <Table.Row key={p}>
                   <Table.Cell>
-                    <a href={`https://radar-api.service.newrelic.com/accounts/${row.accountId.toString()}/issues/${row.issueId}?notifier=&action=`} target="_blank" rel="noreferrer">
+                    <a href={`${base}/accounts/${row.accountId.toString()}/issues/${row.issueId}?notifier=&action=`} target="_blank" rel="noreferrer">
                       {row.issueId}
                     </a>
                   </Table.Cell>
