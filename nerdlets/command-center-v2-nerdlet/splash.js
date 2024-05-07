@@ -97,11 +97,17 @@ export default class Splash extends React.Component {
               return priorityObj.values[0] == 'HIGH';
             }).length;
 
+            let mutedCount = anAccountsIssues.filter(issue => {
+              let priorityObj = issue.tags.find(k => k.key == 'mutingState');
+              return priorityObj.values[0] == 'FULLY_MUTED';
+            }).length;
+
             let anAccount = {
               account: acct.name,
               id: acct.id,
               high: highCount,
-              critical: criticalCount
+              critical: criticalCount,
+              muted: mutedCount
             };
 
             return anAccount;
@@ -182,7 +188,8 @@ export default class Splash extends React.Component {
       e.target.textContent == 'Critical' ||
       e.target.textContent == 'High' ||
       e.target.textContent == 'Healthy' ||
-      e.target.textContent == 'Anomalies'
+      e.target.textContent == 'Anomalies' ||
+      e.target.textContent == 'Muted'
     ) {
       this.sortByStatus(e.target.textContent);
     }
@@ -212,6 +219,10 @@ export default class Splash extends React.Component {
       );
     }
 
+    if (statusText == 'Muted') {
+      cardsByStatus = _.orderBy(cardsByStatus, ['muted'], ['desc']);
+    }
+
     this.setState({
       cardData: cardsByStatus,
       sortDisplay: statusText
@@ -220,7 +231,7 @@ export default class Splash extends React.Component {
 
   renderSortDropdown() {
     const { sortDisplay } = this.state;
-    const sortItems = ['A-Z', 'Z-A', 'Critical', 'High', 'Anomalies', 'Healthy'];
+    const sortItems = ['A-Z', 'Z-A', 'Critical', 'High', 'Muted', 'Anomalies', 'Healthy'];
 
     return (
       <div className="sortBy">
@@ -320,6 +331,12 @@ export default class Splash extends React.Component {
                           {card.high == undefined ? 0 : card.high}
                         </Statistic.Value>
                         <Statistic.Label>High</Statistic.Label>
+                      </Statistic>
+                      <Statistic size="mini" color={this.getCardColor(card)}>
+                        <Statistic.Value>
+                          {card.muted == undefined ? 0 : card.muted}
+                        </Statistic.Value>
+                        <Statistic.Label>Muted</Statistic.Label>
                       </Statistic>
                       <Statistic size="mini" color={this.getCardColor(card)}>
                         <Statistic.Value>

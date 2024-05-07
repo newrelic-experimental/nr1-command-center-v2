@@ -80,7 +80,7 @@ module.exports = {
     {
       actor {
         account(id: ${account}) {
-          nrql(query: "FROM NrAiIncident SELECT incidentId, account.id, title, targetName, policyName, conditionName, openTime, priority, muted, incidentLink, description where incidentId IN (${vios}) and event = 'open' LIMIT MAX ${time}") {
+          nrql(query: "FROM NrAiIncident SELECT incidentId, account.id, title, targetName, policyName, conditionName, openTime, priority, muted, mutingRuleId, mutingRuleName, incidentLink, description where incidentId IN (${vios}) and event = 'open' LIMIT MAX ${time}") {
             results
           }
         }

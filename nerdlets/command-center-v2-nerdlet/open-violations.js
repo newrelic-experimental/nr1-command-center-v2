@@ -108,7 +108,9 @@ export default class OpenIncidents extends React.Component {
             'Opened At': moment(formattedTable[k].openTime).format(
               'MM/DD/YYYY, h:mm a'
             ),
-            Muted: formattedTable[k].muted.toString()
+            Muted: formattedTable[k].muted.toString(),
+            MutingRuleId: formattedTable[k].mutingRuleId == null ? null : formattedTable[k].mutingRuleId,
+            MutingRuleName: formattedTable[k].mutingRuleName == null ? null : formattedTable[k].mutingRuleName
           };
           let noteDisplay = null;
           let noteLink = null;
@@ -264,6 +266,12 @@ export default class OpenIncidents extends React.Component {
         break;
       case 'Muted':
         translated = 'muted';
+        break;
+      case 'MutingRuleId':
+        translated = 'mutingRuleId';
+        break;
+      case 'MutingRuleName':
+        translated = 'mutingRuleName'
         break;
     }
 
@@ -605,6 +613,8 @@ export default class OpenIncidents extends React.Component {
       'Opened At',
       'Duration',
       'Muted',
+      'MutingRuleId',
+      'MutingRuleName',
       'Ack',
       'Close',
       'Links'
@@ -680,6 +690,8 @@ export default class OpenIncidents extends React.Component {
                       : ''}
                   </Table.Cell>
                   <Table.Cell>{row.muted.toString()}</Table.Cell>
+                  <Table.Cell>{row.mutingRuleId == null ? '' : row.mutingRuleId}</Table.Cell>
+                  <Table.Cell>{row.mutingRuleName == null ? '' : row.mutingRuleName}</Table.Cell>
                   <Table.Cell>
                     <Button
                       disabled
