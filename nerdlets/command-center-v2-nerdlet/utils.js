@@ -134,6 +134,24 @@ module.exports = {
       `;
     }
   },
+
+  userName: userId => {
+    return `    
+      {
+        actor {
+          users {
+            userSearch(query: {scope: {userIds: "${userId}"}}) {
+              users {
+                email
+                name
+                userId
+              }
+            }
+          }
+        }
+      }
+    `;
+  },
   /** ******* Open Issues *******/
   /** ******* Open Anomalies *******/
   openAnomalies: (account, time) => {
