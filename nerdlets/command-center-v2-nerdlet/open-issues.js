@@ -5,7 +5,6 @@ import {
   Button,
   HeadingText,
   Modal,
-  Icon,
   NerdGraphMutation,
   NerdGraphQuery,
   Spinner,
@@ -14,7 +13,7 @@ import {
   Tooltip,
   UserQuery
 } from 'nr1';
-import { Input, Pagination, Table } from 'semantic-ui-react';
+import { Input, Table } from 'semantic-ui-react';
 import moment from 'moment';
 import _ from 'lodash';
 import csvDownload from 'json-to-csv-export';
@@ -31,6 +30,7 @@ export default class OpenIssues extends React.Component {
       filteredTableData: [],
       // slicedTableData: [],
       exportableData: [],
+      fullExportableData: [],
       searchText: '',
       column: null,
       direction: null,
@@ -116,7 +116,7 @@ export default class OpenIssues extends React.Component {
       issueProms.push(this.getIssues(acct, allIssues, cursor));
     }
 
-    Promise.all(issueProms).then(issues => {
+    Promise.all(issueProms).then(async issues => {
       let entities = "";
       for (let k=0; k < issues.length; k++) {
         entities = "";
@@ -173,7 +173,7 @@ export default class OpenIssues extends React.Component {
               }
             }
 
-            // if (issues[k].issues[i].acknowledgedBy == null) {
+            if (issues[k].issues[i].acknowledgedBy == null) {
               if (acks.length > 0) {
                 for (let a = 0; a < acks.length; a++) {
                   if (issues[k].issues[i].issueId == acks[a].id) {
@@ -182,26 +182,10 @@ export default class OpenIssues extends React.Component {
                   }
                 }
               }
-            // }
-            // else {
-            //   //TODO: get userName based on ID - only available in v2 user model
-            //   // {
-            //   //   actor {
-            //   //     users {
-            //   //       userSearch(query: {scope: {userIds: "<ack'd by ID>"}}) {
-            //   //         users {
-            //   //           email
-            //   //           name
-            //   //           userId
-            //   //         }
-            //   //       }
-            //   //     }
-            //   //   }
-            //   // }
-            //
-            //   //
-            //   //ackUser = issues[k].issues[i].acknowledgedBy
-            // }
+            } else {
+              const userName = await this.getCurrentUserById(issues[k].issues[i].acknowledgedBy);
+              ackUser = userName;
+            }
 
             issues[k].issues[i].display = noteDisplay;
             issues[k].issues[i].link = noteLink;
@@ -213,13 +197,14 @@ export default class OpenIssues extends React.Component {
         } //if
       } //outer for
 
-      let sortedTable = _.orderBy(table, ['activatedAt'], ['desc']);
+      const sortedTable = _.orderBy(table, ['activatedAt'], ['desc']);
 
       this.setState(
         {
           tableData: sortedTable,
           filteredTableData: sortedTable,
           exportableData: exportable,
+          fullExportableData: exportable,
           currentTime: currTime
         },
         () => {
@@ -233,6 +218,20 @@ export default class OpenIssues extends React.Component {
       //   })
       // });
     });
+  }
+
+  async getCurrentUserById(id) {
+    const res = await NerdGraphQuery.query({
+      query: query.userName(id)
+    });
+    if (res.error) {
+      console.debug(`Failed to retrieve user for ID: ${id}`);
+      console.debug(res.error);
+      return 'Unknown User';
+    } else {
+      const user = res.data.actor.users.userSearch.users[0];
+      return user ? user.name : 'Unknown User';
+    }
   }
 
   async getIssues(acct, allIssues, c) {
@@ -473,25 +472,17 @@ export default class OpenIssues extends React.Component {
   }
 
   async loadLinksFromNerdStore() {
-    const allLinks = [];
-    AccountStorageQuery.query({
-      accountId: this.props.nerdStoreAccount,
-      collection: 'IssueLinks',
-      fetchPolicyType: AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST
-    })
-      .then(({ data }) => {
-        // add brackets ({data}) for just data, remove them for seeing errors
-        if (data.length > 0) {
-          for (let z = 0; z < data.length; z++) {
-            allLinks.push(data[z]);
-          }
-        }
-      })
-      .catch(error => {
-        console.debug(error);
+    try {
+      const { data } = await AccountStorageQuery.query({
+        accountId: this.props.nerdStoreAccount,
+        collection: 'IssueLinks',
+        fetchPolicyType: AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST
       });
-
-    return allLinks;
+      return data || [];
+    } catch (error) {
+      console.debug(error);
+      return [];
+    }
   }
 
   removeOldLinks(linksFromNerdStore) {
@@ -616,25 +607,17 @@ export default class OpenIssues extends React.Component {
   }
 
   async loadAcksFromNerdStore() {
-    const allAcks = [];
-    AccountStorageQuery.query({
-      accountId: this.props.nerdStoreAccount,
-      collection: 'IssueAcksV2',
-      fetchPolicyType: AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST
-    })
-      .then(({ data }) => {
-        // add brackets ({data}) for just data, remove them for seeing errors
-        if (data.length > 0) {
-          for (let z = 0; z < data.length; z++) {
-            allAcks.push(data[z]);
-          }
-        }
-      })
-      .catch(error => {
-        console.debug(error);
+    try {
+      const { data } = await AccountStorageQuery.query({
+        accountId: this.props.nerdStoreAccount,
+        collection: 'IssueAcksV2',
+        fetchPolicyType: AccountStorageQuery.FETCH_POLICY_TYPE.CACHE_FIRST
       });
-
-    return allAcks;
+      return data || [];
+    } catch (error) {
+      console.debug(error);
+      return [];
+    }
   }
 
   removeOldAcks(acksFromNerdStore) {
@@ -734,15 +717,15 @@ export default class OpenIssues extends React.Component {
         row.priority.toLowerCase().includes(searchText.toLowerCase()) ||
         row.name.toLowerCase().includes(searchText.toLowerCase()) ||
         row.mutingState.toLowerCase().includes(searchText.toLowerCase()) ||
-        row.relatedEntityName.toString().toLowerCase().includes(searchText.toLowerCase())
+        (row.relatedEntityName ?? '').toString().toLowerCase().includes(searchText.toLowerCase())
       );
     });
   }
 
   getFilteredExportableData(searchText) {
-    const { exportableData } = this.state;
+    const { fullExportableData } = this.state;
 
-    return exportableData.filter(row => {
+    return fullExportableData.filter(row => {
       return (
         row.Account.toLowerCase().includes(searchText.toLowerCase()) ||
         row.Title.toLowerCase().includes(searchText.toLowerCase()) ||
