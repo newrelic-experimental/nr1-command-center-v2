@@ -232,4 +232,21 @@ module.exports = {
     `;
   },
   /** ******* Incident Analytics *******/
+  /** ******* Dashboard *******/
+  createAqmDashboard: (accountId) => {
+    return `
+    mutation create($dashboard: DashboardInput!) {
+      dashboardCreate(accountId: ${accountId}, dashboard: $dashboard) {
+        entityResult {
+          guid
+          name
+        }
+        errors {
+          description
+        }
+      }
+    }
+    `;
+  },
+  /** ******* Dashboard *******/
 };

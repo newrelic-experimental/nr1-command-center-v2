@@ -1,15 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { navigation, NerdGraphQuery, Spinner, Toast } from 'nr1';
+import {
+  navigation,
+  NerdGraphMutation,
+  NerdGraphQuery,
+  Spinner,
+  Toast,
+} from 'nr1';
 import { Input } from 'semantic-ui-react';
 import orderBy from 'lodash/orderBy';
 import sum from 'lodash/sum';
 
 import AnalyticsStats from './components/AnalyticsStats';
 import AnalyticsTable from './components/AnalyticsTable';
+import ConfirmModal from './components/ConfirmModal';
 import useDebouncedValue from './hooks/useDebouncedValue';
 
 const query = require('./utils');
+const aqmTemplate = require('./aqm.json');
 
 const TOOLTIP_BY_TITLE = {
   'Issue Count':
@@ -119,6 +127,11 @@ export default function Analytics({ time, accounts }) {
   const [dashboards, setDashboards] = useState(null);
   const [sort, setSort] = useState({ column: null, direction: null });
 
+  const [dashModal, setDashModal] = useState({
+    hidden: true,
+    rowAccountId: null,
+  });
+
   const debouncedSearch = useDebouncedValue(searchText, 200);
 
   const accountSignature = useMemo(
@@ -189,16 +202,90 @@ export default function Analytics({ time, accounts }) {
     );
   }, [sortedRows, debouncedSearch]);
 
+  const openDashModal = useCallback((row) => {
+    setDashModal({
+      hidden: false,
+      rowAccountId: row.id,
+      rowAccountName: row.account,
+    });
+  }, []);
+
+  const cancelDashModal = useCallback(() => {
+    setDashModal({ hidden: true, rowAccountId: null, rowAccountName: null });
+  }, []);
+
+  const createDashboard = useCallback(
+    async (accountId) => {
+      const dashboard = JSON.parse(
+        JSON.stringify(aqmTemplate).replace(
+          /"accountId":1/g,
+          `"accountId":${accountId}`
+        )
+      );
+      let res;
+      try {
+        res = await NerdGraphMutation.mutate({
+          mutation: query.createAqmDashboard(accountId),
+          variables: { dashboard },
+        });
+      } catch (err) {
+        Toast.showToast({
+          title: err.message || 'Failed to create AQM dashboard',
+          type: Toast.TYPE.CRITICAL,
+        });
+        console.debug(err);
+        return;
+      }
+
+      if (res.error) {
+        Toast.showToast({
+          title: 'Failed to create AQM dashboard',
+          type: Toast.TYPE.CRITICAL,
+        });
+        console.debug(res.error);
+        return;
+      }
+
+      const { errors, entityResult } = res.data?.dashboardCreate ?? {};
+      if (errors?.length) {
+        Toast.showToast({
+          title: errors[0].description,
+          type: Toast.TYPE.CRITICAL,
+        });
+        return;
+      }
+
+      setDashboards((prev) =>
+        (prev || []).map((d) =>
+          d.account === accountId
+            ? {
+                account: accountId,
+                guid: entityResult.guid,
+                name: entityResult.name,
+              }
+            : d
+        )
+      );
+      Toast.showToast({
+        title: 'AQM Dashboard created successfully',
+        type: Toast.TYPE.NORMAL,
+      });
+      cancelDashModal();
+    },
+    [cancelDashModal]
+  );
+
   const openDrilldown = useCallback(
     (r) => {
       const selectedDash =
         dashboards && dashboards.find((d) => d.account === r.id);
       if (!selectedDash || selectedDash.guid == null) {
         Toast.showToast({
-          title: 'AQM dashboard not found.',
-          description: `Please validate Alert Quality Management dashboard exists in account: ${r.id}`,
+          title:
+            'AQM dashboard not found. See modal to create it in desired account.',
           type: Toast.TYPE.CRITICAL,
         });
+        openDashModal(r);
         return;
       }
       navigation.openStackedNerdlet({
@@ -241,6 +328,12 @@ export default function Analytics({ time, accounts }) {
         direction={sort.direction}
         onSort={handleSort}
         onOpenDrilldown={openDrilldown}
+      />
+      <ConfirmModal
+        hidden={dashModal.hidden}
+        heading={`Create AQM Dashboard in account: ${dashModal.rowAccountName}?`}
+        onConfirm={() => createDashboard(dashModal.rowAccountId)}
+        onCancel={cancelDashModal}
       />
     </>
   );
