@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/newrelic/nr1-command-center-v2/compare/v1.0.1...v1.0.2) (2026-07-27)
+
+
+### Bug Fixes
+
+* create aqm dash in app ([3a7a27a](https://github.com/newrelic/nr1-command-center-v2/commit/3a7a27aa04e48a8e57e13ff3cbaa434e5bd5aed9))
+
 ## [1.0.1](https://github.com/newrelic/nr1-command-center-v2/compare/v1.0.0...v1.0.1) (2026-07-16)
 
 
